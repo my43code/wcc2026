@@ -196,18 +196,18 @@ function App() {
           <p className="eyebrow light">Your next chapter</p>
           <h2>Come and see what<br /><em>makes Waigani different.</em></h2>
           <p>The best way to know our school is to experience it. We would love to welcome your family.</p>
-          <div><button className="button gold" onClick={() => setFormOpen(true)}>Book a school tour <Arrow /></button><a href="tel:+67500000000" className="text-link light">Call our team</a></div>
+          <div><button className="button gold" onClick={() => setFormOpen(true)}>Book a school tour <Arrow /></button><a href="tel:+67572714798" className="text-link light">Call our team</a></div>
         </section>
       </main>
 
       <footer>
-        <div className="footer-main"><div className="footer-brand"><a className="brand" href="#home"><img className="brand-logo" src={schoolLogo} alt="Waigani Christian College crest" /><span><strong>Waigani Christian</strong><small>College · Papua New Guinea</small></span></a><p>Growing minds, shaping character and building community.</p></div><div><h4>Explore</h4><a href="#about">Our school</a><a href="#learning">Learning</a><a href="#life">Student life</a><a href="#news">News & events</a></div><div className="footer-visit"><img className="national-emblem" src={nationalEmblem} alt="National emblem of Papua New Guinea" /><div><h4>Visit us</h4><p>Waigani Campus<br />Papua New Guinea</p><a href="mailto:enquiries@wcc.edu.pg">enquiries@wcc.edu.pg</a><a href="tel:+67500000000">+675 0000 0000</a></div></div></div>
+        <div className="footer-main"><div className="footer-brand"><a className="brand" href="#home"><img className="brand-logo" src={schoolLogo} alt="Waigani Christian College crest" /><span><strong>Waigani Christian</strong><small>College · Papua New Guinea</small></span></a><p>Growing minds, shaping character and building community.</p></div><div className="footer-explore"><h4>Explore</h4><a href="#about">Our school</a><a href="#learning">Learning</a><a href="#life">Student life</a><a href="#news">News & events</a></div><div className="footer-visit"><img className="national-emblem" src={nationalEmblem} alt="National emblem of Papua New Guinea" /><div><h4>Visit us</h4><p>Waigani Campus<br />Papua New Guinea</p><a href="mailto:info@wcc.ac.pg">info@wcc.ac.pg</a><a href="tel:+67572714798">72714798</a></div></div></div>
         <div className="footer-bottom"><span>© 2026 Waigani Christian College. All rights reserved.</span><span className="footer-utility">Privacy · Policies <a href="/admin">Admin login →</a></span></div>
       </footer>
 
       <nav className="mobile-quickbar" aria-label="Quick actions">
         <a href="#home" aria-label="Back to homepage"><span aria-hidden="true">&#8962;</span>Home</a>
-        <a href="tel:+67500000000" aria-label="Call the college"><span aria-hidden="true">&#9742;</span>Call</a>
+        <a href="tel:+67572714798" aria-label="Call the college on 72714798"><span aria-hidden="true">&#9742;</span>Call</a>
         <button onClick={() => setFormOpen(true)}><span aria-hidden="true">&#9993;</span>Enquire</button>
       </nav>
 
