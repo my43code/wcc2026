@@ -1,8 +1,8 @@
 :root { --navy:#080808; --deep:#000000; --gold:#ffd21c; --cream:#ffffff; --ink:#111111; --sage:#1675c1; --line:rgba(0,0,0,.14); --red:#d71920; --blue:#0879c9; }
-.site-shell { overflow:hidden; background:var(--cream); }
+.site-shell { overflow:clip; background:var(--cream); }
 .announcement { height:38px; background:var(--gold); color:var(--deep); display:flex; justify-content:center; align-items:center; gap:24px; font-size:12px; font-weight:600; letter-spacing:.04em; }
 .announcement p { margin:0; }.announcement button { border:0; background:none; border-bottom:1px solid currentColor; padding:1px 0; font-size:11px; text-transform:uppercase; font-weight:600; letter-spacing:.08em; }
-.header { height:88px; background:var(--cream); display:flex; align-items:center; justify-content:space-between; padding:0 clamp(24px,6vw,92px); position:relative; z-index:20; border-bottom:1px solid var(--line); }
+.header { height:88px; background:var(--cream); display:flex; align-items:center; justify-content:space-between; padding:0 clamp(24px,6vw,92px); position:sticky; top:0; z-index:50; border-bottom:1px solid var(--line); }
 .brand { display:flex; align-items:center; text-decoration:none; gap:12px; }.brand-mark { width:45px; height:45px; background:var(--navy); color:var(--gold); display:grid; place-items:center; border-radius:50% 50% 46% 54%; font:28px 'Libre Caslon Display'; }.brand strong { display:block; font:25px/1 'Libre Caslon Display'; letter-spacing:.08em; }.brand small { display:block; font-size:8px; text-transform:uppercase; letter-spacing:.14em; margin-top:4px; }
 .nav { display:flex; align-items:center; gap:30px; }.nav a { text-decoration:none; font-size:13px; font-weight:500; }.nav a:hover { color:#9b6d22; }.nav-cta,.button { border:0; padding:14px 21px; font-size:12px; text-transform:uppercase; font-weight:600; letter-spacing:.08em; }.nav-cta { background:var(--navy); color:white; }.menu-button { display:none; }
 .hero-section { min-height:680px; background:var(--navy); color:white; display:grid; grid-template-columns:55% 45%; position:relative; }.hero-content { padding:110px 5vw 100px 8vw; position:relative; z-index:2; }.eyebrow { color:#9a6d29; text-transform:uppercase; letter-spacing:.18em; font-size:11px; font-weight:600; margin:0 0 24px; }.eyebrow.light { color:var(--gold); }.hero-section h1,.section h2,.values-section h2,.cta-section h2,.modal h2 { font:clamp(48px,5.5vw,84px)/.98 'Libre Caslon Display'; letter-spacing:-.035em; margin:0; font-weight:400; }.hero-section h1 em,h2 em { color:var(--gold); font-weight:400; }.hero-copy { max-width:500px; font-size:16px; line-height:1.75; color:#d2ddda; margin:30px 0 38px; }.hero-actions,.cta-section>div { display:flex; align-items:center; gap:30px; }.button.gold { background:var(--gold); color:var(--deep); }.button.navy { background:var(--navy); color:white; width:100%; }.button { display:inline-flex; justify-content:space-between; align-items:center; gap:25px; }.text-link { font-size:12px; text-transform:uppercase; letter-spacing:.1em; font-weight:600; text-decoration:none; padding-bottom:5px; border-bottom:1px solid currentColor; }.text-link.light { color:white; }
@@ -144,3 +144,85 @@ footer::before { content:''; position:absolute; top:0; left:0; right:0; height:1
 .search-results span,.search-results>p { color:#687074; font-size:13px; }
 @media(max-width:850px){.search-button{justify-content:flex-start}.search-panel{padding:38px 24px}.search-button span{display:inline}}
 @media(max-width:520px){.search-panel form{grid-template-columns:1fr}.search-panel form button{padding:15px}.search-panel{box-shadow:8px 8px 0 var(--blue)}}
+
+/* Responsive polish, sticky navigation and homepage gallery */
+html { scroll-padding-top:110px; }
+button,a { -webkit-tap-highlight-color:transparent; }
+button { cursor:pointer; }
+.hero-slides,.hero-slide { position:absolute; inset:0; }
+.hero-slide { background-size:cover; opacity:0; transform:scale(1.04); transition:opacity .9s ease,transform 6s ease; }
+.hero-slide.active { opacity:1; transform:scale(1); }
+.photo-art::before { z-index:1; pointer-events:none; }
+.hero-badge { z-index:3; }
+.slider-controls { position:absolute; z-index:4; right:28px; bottom:28px; display:flex; align-items:center; gap:12px; padding:7px; background:rgba(0,0,0,.62); backdrop-filter:blur(8px); }
+.slider-controls>button { width:42px; height:42px; border:1px solid rgba(255,255,255,.45); background:transparent; color:white; font-size:18px; transition:background .2s ease,color .2s ease; }
+.slider-controls>button:hover { background:var(--gold); color:#050505; }
+.slider-dots { display:flex; align-items:center; gap:7px; }
+.slider-dots button { width:9px; height:9px; padding:0; border:0; border-radius:9px; background:rgba(255,255,255,.45); transition:width .25s ease,background .25s ease; }
+.slider-dots button.active { width:25px; background:var(--gold); }
+.mobile-quickbar { display:none; }
+
+@media(max-width:1100px){
+  .header { padding-inline:28px; }
+  .nav { gap:18px; }
+  .nav a,.search-button { font-size:12px; }
+  .hero-content { padding-right:4vw; }
+  .hero-section h1 { font-size:clamp(50px,6.5vw,74px); }
+  .program-card { padding:28px; }
+}
+
+@media(max-width:850px){
+  body { padding-bottom:68px; }
+  html { scroll-padding-top:88px; }
+  .header { position:sticky; top:0; }
+  .nav { max-height:calc(100vh - 82px); overflow:auto; gap:0; padding:12px 22px 24px; }
+  .nav a,.search-button,.nav-cta { min-height:52px; display:flex; align-items:center; padding:12px 6px; border-bottom:1px solid #e3e3e3; }
+  .nav-cta { justify-content:center; margin-top:12px; border:0; }
+  .hero-section { min-height:0; }
+  .hero-content { padding-top:64px; }
+  .hero-art { height:min(62vh,520px); }
+  .slider-controls { right:18px; bottom:18px; }
+  .hero-badge { bottom:24px; }
+  .program-grid { gap:16px; }
+  .program-card { min-height:290px; }
+  .mobile-quickbar { position:fixed; z-index:60; display:grid; grid-template-columns:1fr 1fr 1.25fr; left:0; right:0; bottom:0; min-height:68px; padding-bottom:env(safe-area-inset-bottom); background:white; border-top:1px solid #ddd; box-shadow:0 -8px 28px rgba(0,0,0,.16); }
+  .mobile-quickbar a,.mobile-quickbar button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; border:0; border-right:1px solid #e5e5e5; background:white; color:#111; text-decoration:none; font-size:10px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
+  .mobile-quickbar span { font-size:21px; line-height:1; }
+  .mobile-quickbar button { background:var(--red); color:white; border:0; }
+}
+
+@media(max-width:520px){
+  .announcement { height:34px; gap:10px; }
+  .announcement button { white-space:nowrap; }
+  .header { height:74px; padding-inline:14px; border-bottom-width:4px; }
+  .brand { gap:8px; min-width:0; }
+  .brand-logo { width:52px; height:52px; }
+  .brand strong { font-size:12px; max-width:155px; }
+  .nav { top:74px; max-height:calc(100vh - 74px); }
+  .hero-content { padding:52px 20px 72px; }
+  .hero-section h1 { font-size:clamp(41px,12vw,52px); }
+  .hero-copy { margin:24px 0 30px; font-size:15px; line-height:1.65; }
+  .hero-actions { gap:22px; }
+  .hero-art { height:390px; }
+  .hero-badge { width:104px; height:104px; left:18px; bottom:20px; border-width:5px; }
+  .hero-badge strong { font-size:30px; }
+  .hero-stat { left:20px; right:20px; padding:16px 22px; }
+  .slider-controls { right:12px; bottom:14px; gap:7px; padding:5px; }
+  .slider-controls>button { width:36px; height:36px; }
+  .slider-dots { gap:5px; }
+  .slider-dots button { width:7px; height:7px; }
+  .slider-dots button.active { width:17px; }
+  .section { padding:76px 20px; }
+  .intro { padding-top:118px; }
+  .section h2,.values-section h2,.cta-section h2 { font-size:clamp(37px,11vw,45px); }
+  .program-card { padding:26px 22px; }
+  .values-visual { min-height:440px; }
+  .quote-card { width:calc(100% - 40px); right:20px; padding:20px; }
+  .values-content { padding:68px 20px; }
+  .life-card { min-height:280px; }
+  .cta-section { padding:82px 20px; }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .hero-slide { transition:none; transform:none; }
+}

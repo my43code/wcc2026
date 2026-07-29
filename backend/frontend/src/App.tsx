@@ -23,6 +23,13 @@ const defaultNews: NewsItem[] = [
   { date: '05 SEP', tag: 'Sport', title: 'Inter-house Athletics', text: 'Our school community comes together for a day of energy and team spirit.' },
 ]
 
+const heroSlides = [
+  { image: campusImage, alt: 'Waigani Christian College students gathered on campus', position: '55% center' },
+  { image: facilitiesImage, alt: 'Learning facilities at Waigani Christian College', position: 'center' },
+  { image: learningImage, alt: 'Students learning together at Waigani Christian College', position: 'center' },
+  { image: transportImage, alt: 'Waigani Christian College student transport and community', position: 'center' },
+]
+
 function Arrow() { return <span aria-hidden="true">↗</span> }
 
 function App() {
@@ -34,6 +41,8 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
+  const [heroSlide, setHeroSlide] = useState(0)
+  const [sliderPaused, setSliderPaused] = useState(false)
 
   useEffect(() => {
     document.body.style.overflow = formOpen || searchOpen ? 'hidden' : ''
@@ -47,6 +56,12 @@ function App() {
       setNews(posts.slice(0,6).map(post => { const date=post.event_date?new Date(`${post.event_date}T00:00:00`):new Date(); return {id:post.id,date:`${String(date.getDate()).padStart(2,'0')} ${months[date.getMonth()]}`,tag:labels[post.category]||'College',title:post.title,text:post.summary} }))
     }).catch(() => undefined)
   }, [])
+
+  useEffect(() => {
+    if (sliderPaused) return
+    const timer = window.setInterval(() => setHeroSlide(current => (current + 1) % heroSlides.length), 5500)
+    return () => window.clearInterval(timer)
+  }, [sliderPaused])
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -100,8 +115,16 @@ function App() {
               <a href="#about" className="text-link light">Discover our school <span>↓</span></a>
             </div>
           </div>
-          <div className="hero-art photo-art" style={{ backgroundImage: `url(${campusImage})` }} role="img" aria-label="Waigani Christian College students gathered on campus">
+          <div className="hero-art photo-art" role="region" aria-roledescription="carousel" aria-label="College highlights" onMouseEnter={() => setSliderPaused(true)} onMouseLeave={() => setSliderPaused(false)} onFocus={() => setSliderPaused(true)} onBlur={() => setSliderPaused(false)}>
+            <div className="hero-slides" aria-live="polite">
+              {heroSlides.map((slide, index) => <div key={slide.image} className={index === heroSlide ? 'hero-slide active' : 'hero-slide'} style={{ backgroundImage: `url(${slide.image})`, backgroundPosition: slide.position }} role="img" aria-label={slide.alt} aria-hidden={index !== heroSlide} />)}
+            </div>
             <div className="hero-badge"><strong>25+</strong><span>years of<br />growing minds</span></div>
+            <div className="slider-controls">
+              <button onClick={() => setHeroSlide(current => (current - 1 + heroSlides.length) % heroSlides.length)} aria-label="Previous image">&#8592;</button>
+              <div className="slider-dots">{heroSlides.map((_, index) => <button key={index} className={index === heroSlide ? 'active' : ''} onClick={() => setHeroSlide(index)} aria-label={`Show image ${index + 1}`} aria-current={index === heroSlide ? 'true' : undefined} />)}</div>
+              <button onClick={() => setHeroSlide(current => (current + 1) % heroSlides.length)} aria-label="Next image">&#8594;</button>
+            </div>
           </div>
           <div className="hero-stat"><strong>One community.</strong><span>Endless possibility.</span></div>
         </section>
@@ -181,6 +204,12 @@ function App() {
         <div className="footer-main"><div className="footer-brand"><a className="brand" href="#home"><img className="brand-logo" src={schoolLogo} alt="Waigani Christian College crest" /><span><strong>Waigani Christian</strong><small>College · Papua New Guinea</small></span></a><p>Growing minds, shaping character and building community.</p></div><div><h4>Explore</h4><a href="#about">Our school</a><a href="#learning">Learning</a><a href="#life">Student life</a><a href="#news">News & events</a></div><div className="footer-visit"><img className="national-emblem" src={nationalEmblem} alt="National emblem of Papua New Guinea" /><div><h4>Visit us</h4><p>Waigani Campus<br />Papua New Guinea</p><a href="mailto:enquiries@wcc.edu.pg">enquiries@wcc.edu.pg</a><a href="tel:+67500000000">+675 0000 0000</a></div></div></div>
         <div className="footer-bottom"><span>© 2026 Waigani Christian College. All rights reserved.</span><span className="footer-utility">Privacy · Policies <a href="/admin">Admin login →</a></span></div>
       </footer>
+
+      <nav className="mobile-quickbar" aria-label="Quick actions">
+        <a href="#home" aria-label="Back to homepage"><span aria-hidden="true">&#8962;</span>Home</a>
+        <a href="tel:+67500000000" aria-label="Call the college"><span aria-hidden="true">&#9742;</span>Call</a>
+        <button onClick={() => setFormOpen(true)}><span aria-hidden="true">&#9993;</span>Enquire</button>
+      </nav>
 
       {formOpen && <div className="modal-backdrop" role="presentation" onMouseDown={() => setFormOpen(false)}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title" onMouseDown={e => e.stopPropagation()}><button className="modal-close" onClick={() => setFormOpen(false)} aria-label="Close">×</button>{sent ? <div className="success"><span>✓</span><h2>Thank you.</h2><p>Our enrolments team will be in touch shortly.</p><button className="button navy" onClick={() => { setFormOpen(false); setSent(false) }}>Done</button></div> : <><p className="eyebrow">Start a conversation</p><h2 id="form-title">Enquire about Waigani Christian College</h2><p>Tell us a little about your family and our team will contact you.</p><form onSubmit={submit}><label>Parent or carer name<input required name="name" autoFocus /></label><label>Email address<input required type="email" name="email" /></label><label>Student year level<select name="year_level" required defaultValue=""><option value="" disabled>Select a year level</option><option>Early Learning</option><option>Primary School</option><option>Secondary School</option></select></label><label>Message <span>(optional)</span><textarea name="message" rows={3}></textarea></label><button className="button navy" type="submit">Send enquiry <Arrow /></button></form></>}</div></div>}
 
