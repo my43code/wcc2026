@@ -14,8 +14,8 @@ const programs = [
   { icon: '◇', title: 'Secondary School', ages: 'Grades 7–12', text: 'Purposeful pathways, expert teaching and preparation for life beyond school.' },
 ]
 
-type NewsItem = { id?: number; date: string; tag: string; title: string; text: string }
-type SearchResult = { id:number; title:string; summary:string; category:string; event_date:string|null; promoted:boolean }
+type NewsItem = { id?: number; date: string; tag: string; title: string; text: string; media_url?:string|null; media_type?:'image'|'video'|null }
+type SearchResult = { id:number|string; title:string; summary:string; category:string; event_date:string|null; promoted:boolean; href:string }
 
 const defaultNews: NewsItem[] = [
   { date: '12 AUG', tag: 'Community', title: 'College Open Day 2026', text: 'Tour our campus, meet our teachers and see learning in action.' },
@@ -29,6 +29,24 @@ const heroSlides = [
   { image: learningImage, alt: 'Students learning together at Waigani Christian College', position: 'center' },
   { image: transportImage, alt: 'Waigani Christian College student transport and community', position: 'center' },
 ]
+
+function searchWebsiteSections(query:string):SearchResult[] {
+  const terms = query.toLocaleLowerCase().split(/\s+/).filter(Boolean)
+  const sections = document.querySelectorAll<HTMLElement>('.announcement, header, main section[id], footer')
+  return Array.from(sections).flatMap((section,index) => {
+    const searchableText = section.innerText.replace(/\s+/g,' ').trim()
+    const normalizedText = searchableText.toLocaleLowerCase()
+    if (!terms.every(term => normalizedText.includes(term))) return []
+    const heading = section.querySelector<HTMLElement>('h1,h2,h3')?.innerText.replace(/\s+/g,' ').trim()
+    const sectionId = section.id || (section.tagName==='FOOTER' ? 'contact' : 'home')
+    return [{
+      id:`website-${index}`,
+      title:heading || (section.matches('.announcement') ? 'Enrolments' : section.tagName==='HEADER' ? 'Website navigation' : 'Waigani Christian College'),
+      summary:searchableText.slice(0,240),
+      category:'website', event_date:null, promoted:false, href:`#${sectionId}`,
+    }]
+  })
+}
 
 function Arrow() { return <span aria-hidden="true">↗</span> }
 
@@ -50,10 +68,10 @@ function App() {
   }, [formOpen, searchOpen])
 
   useEffect(() => {
-    fetch('/api/posts').then(response => response.ok ? response.json() : Promise.reject()).then((posts: Array<{id:number;title:string;summary:string;category:string;event_date:string|null}>) => {
+    fetch('/api/posts').then(response => response.ok ? response.json() : Promise.reject()).then((posts: Array<{id:number;title:string;summary:string;category:string;event_date:string|null;media_url:string|null;media_type:'image'|'video'|null}>) => {
       const labels:Record<string,string> = {news_events:'News',early_learning:'Early learning',primary_school:'Primary',secondary_school:'Secondary',student_life:'Student life'}
       const months=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
-      setNews(posts.slice(0,6).map(post => { const date=post.event_date?new Date(`${post.event_date}T00:00:00`):new Date(); return {id:post.id,date:`${String(date.getDate()).padStart(2,'0')} ${months[date.getMonth()]}`,tag:labels[post.category]||'College',title:post.title,text:post.summary} }))
+      setNews(posts.slice(0,6).map(post => { const date=post.event_date?new Date(`${post.event_date}T00:00:00`):new Date(); return {id:post.id,date:`${String(date.getDate()).padStart(2,'0')} ${months[date.getMonth()]}`,tag:labels[post.category]||'College',title:post.title,text:post.summary,media_url:post.media_url,media_type:post.media_type} }))
     }).catch(() => undefined)
   }, [])
 
@@ -72,9 +90,15 @@ function App() {
 
   const runSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (searchQuery.trim().length < 2) return
+    const query = searchQuery.trim()
+    if (!query) return
     setSearching(true)
-    try { const response=await fetch(`/api/search?q=${encodeURIComponent(searchQuery.trim())}`); setSearchResults(response.ok?await response.json():[]) } finally { setSearching(false) }
+    try {
+      const websiteResults = searchWebsiteSections(query)
+      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
+      const postResults:Array<Omit<SearchResult,'href'>> = response.ok ? await response.json() : []
+      setSearchResults([...postResults.map(result=>({...result,href:'#news'})),...websiteResults])
+    } finally { setSearching(false) }
   }
 
   const closeMenu = () => setMenuOpen(false)
@@ -188,7 +212,7 @@ function App() {
         <section className="news-section section" id="news">
           <div className="news-heading"><div><p className="eyebrow">What’s happening</p><h2>Life at <em>Waigani.</em></h2></div><a href="#news" className="text-link">View all news <Arrow /></a></div>
           <div className="news-list">
-            {news.map(item => <article key={item.title}><div className="date"><strong>{item.date.split(' ')[0]}</strong><span>{item.date.split(' ')[1]}</span></div><div className="news-copy"><small>{item.tag}</small><h3>{item.title}</h3><p>{item.text}</p></div><span className="round-arrow"><Arrow /></span></article>)}
+            {news.map(item => <article key={item.id||item.title}><div className="date"><strong>{item.date.split(' ')[0]}</strong><span>{item.date.split(' ')[1]}</span></div><div className="news-copy"><small>{item.tag}</small><h3>{item.title}</h3><p>{item.text}</p>{item.media_url&&<div className="news-media">{item.media_type==='video'?<video src={item.media_url} controls preload="metadata"/>:<img src={item.media_url} alt="" loading="lazy"/>}</div>}</div><span className="round-arrow"><Arrow /></span></article>)}
           </div>
         </section>
 
@@ -213,7 +237,7 @@ function App() {
 
       {formOpen && <div className="modal-backdrop" role="presentation" onMouseDown={() => setFormOpen(false)}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title" onMouseDown={e => e.stopPropagation()}><button className="modal-close" onClick={() => setFormOpen(false)} aria-label="Close">×</button>{sent ? <div className="success"><span>✓</span><h2>Thank you.</h2><p>Our enrolments team will be in touch shortly.</p><button className="button navy" onClick={() => { setFormOpen(false); setSent(false) }}>Done</button></div> : <><p className="eyebrow">Start a conversation</p><h2 id="form-title">Enquire about Waigani Christian College</h2><p>Tell us a little about your family and our team will contact you.</p><form onSubmit={submit}><label>Parent or carer name<input required name="name" autoFocus /></label><label>Email address<input required type="email" name="email" /></label><label>Student year level<select name="year_level" required defaultValue=""><option value="" disabled>Select a year level</option><option>Early Learning</option><option>Primary School</option><option>Secondary School</option></select></label><label>Message <span>(optional)</span><textarea name="message" rows={3}></textarea></label><button className="button navy" type="submit">Send enquiry <Arrow /></button></form></>}</div></div>}
 
-      {searchOpen && <div className="search-backdrop" onMouseDown={() => setSearchOpen(false)}><section className="search-panel" role="dialog" aria-modal="true" aria-labelledby="search-title" onMouseDown={event=>event.stopPropagation()}><button className="search-close" onClick={()=>setSearchOpen(false)} aria-label="Close search">×</button><p className="eyebrow">Find it quickly</p><h2 id="search-title">Search the college</h2><form onSubmit={runSearch}><input value={searchQuery} onChange={event=>setSearchQuery(event.target.value)} placeholder="Search news, events and school areas…" autoFocus/><button type="submit">Search →</button></form><div className="search-results">{searching?<p>Searching…</p>:searchResults.length>0?searchResults.map(result=><a key={result.id} href="#news" onClick={()=>setSearchOpen(false)}><small>{result.category.replaceAll('_',' ')}</small><strong>{result.title}{result.promoted&&<b>Featured</b>}</strong><span>{result.summary}</span></a>):searchQuery.length>1?<p>No matching information found.</p>:<p>Enter at least two letters to search published information.</p>}</div></section></div>}
+      {searchOpen && <div className="search-backdrop" onMouseDown={() => setSearchOpen(false)}><section className="search-panel" role="dialog" aria-modal="true" aria-labelledby="search-title" onMouseDown={event=>event.stopPropagation()}><button className="search-close" onClick={()=>setSearchOpen(false)} aria-label="Close search">×</button><p className="eyebrow">Find it quickly</p><h2 id="search-title">Search the college</h2><form onSubmit={runSearch}><input value={searchQuery} onChange={event=>setSearchQuery(event.target.value)} placeholder="Search every page and published post…" autoFocus/><button type="submit">Search →</button></form><div className="search-results">{searching?<p>Searching…</p>:searchResults.length>0?searchResults.map(result=><a key={result.id} href={result.href} onClick={()=>setSearchOpen(false)}><small>{result.category.replaceAll('_',' ')}</small><strong>{result.title}{result.promoted&&<b>Featured</b>}</strong><span>{result.summary}</span></a>):searchQuery.trim()?<p>No matching information found.</p>:<p>Enter a word to search the whole website.</p>}</div></section></div>}
     </div>
   )
 }
