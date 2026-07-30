@@ -1,8 +1,8 @@
 # Website database inventory
 
-The website currently uses SQLite at `backend/wcc.db`. The planned production
-database is Supabase PostgreSQL. The ready-to-run schema is in
-`supabase/schema.sql`.
+The website API uses Supabase PostgreSQL. The ready-to-run schema is in
+`supabase/schema.sql`; the browser continues to call FastAPI so the database
+secret never reaches frontend code.
 
 ## Stored server data
 
@@ -49,24 +49,23 @@ Admin username, password, and token-signing secret are currently read from
 database tables. The browser keeps only `wcc_admin_token` in `sessionStorage`;
 it expires after eight hours and is removed on sign-out.
 
-For the first Supabase connection, keep the existing FastAPI API boundary and
-configure these server-only variables:
+Configure these server-only variables in `backend/.env`:
 
 ```env
 SUPABASE_URL=https://PROJECT_REF.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=server-only-secret
+SUPABASE_SECRET_KEY=sb_secret_server-only-secret
 ```
 
-Do not prefix the service-role key with `VITE_` and never place it in frontend
+Do not prefix the secret key with `VITE_` and never place it in frontend
 code. Public clients may read published posts and submit new enquiries; only the
-server service role should manage unpublished posts or read/update enquiries.
+server should manage unpublished posts or read/update enquiries.
 
 ## Migration checklist
 
 1. Create a Supabase project and run `supabase/schema.sql` in its SQL editor.
 2. Add the two server environment variables to the deployment host.
-3. Export existing SQLite rows from `posts` and `enquiries` and import them.
-4. Change the FastAPI database adapter from SQLite to Supabase/PostgreSQL.
+3. If needed, export existing SQLite rows from `posts` and `enquiries` and import them.
+4. Start FastAPI and open `GET /api/health` to verify the Supabase connection.
 5. Verify public post/search access, enquiry submission, and every admin action.
-6. Retain `wcc.db` as a backup until record counts and content are verified.
+6. Retain any old `wcc.db` file as a backup until record counts are verified.
 

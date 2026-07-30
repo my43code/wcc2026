@@ -53,6 +53,31 @@ create trigger posts_set_updated_at
 before update on public.posts
 for each row execute function public.set_updated_at();
 
+create or replace function public.search_published_posts(search_term text)
+returns table (
+  id bigint,
+  title text,
+  summary text,
+  category text,
+  event_date date,
+  promoted boolean
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select p.id, p.title, p.summary, p.category, p.event_date, p.promoted
+  from public.posts as p
+  where p.published = true
+    and concat_ws(' ', p.title, p.summary, p.body) ilike '%' || search_term || '%'
+  order by p.promoted desc, p.created_at desc
+  limit 20;
+$$;
+
+revoke all on function public.search_published_posts(text) from public, anon, authenticated;
+grant execute on function public.search_published_posts(text) to service_role;
+
 alter table public.posts enable row level security;
 alter table public.enquiries enable row level security;
 
@@ -70,6 +95,6 @@ on public.enquiries for insert
 to anon, authenticated
 with check (status = 'new');
 
--- The FastAPI server must use SUPABASE_SERVICE_ROLE_KEY for admin CRUD.
--- Never expose the service-role key in Vite or other browser code.
+-- The FastAPI server uses a SUPABASE_SECRET_KEY for all database access.
+-- Never expose a secret key in Vite or other browser code.
 
