@@ -238,9 +238,25 @@ def delete_post(post_id: int, database: Client = Depends(require_admin_database)
 def create_enquiry(enquiry: EnquiryInput):
     # Visitors may insert enquiries but must never be able to read them back.
     # A minimal response avoids requiring a SELECT policy on private records.
-    require_database().table("enquiries").insert(
-        enquiry.model_dump(), returning=ReturnMethod.minimal
-    ).execute()
+    try:
+        require_database().table("enquiries").insert(
+            enquiry.model_dump(), returning=ReturnMethod.minimal
+        ).execute()
+    except APIError as error:
+        error_text = str(error).lower()
+        if "row-level security" in error_text or "permission denied" in error_text:
+            detail = (
+                "Enquiry submissions are not enabled in Supabase yet. "
+                "Apply backend/supabase/schema.sql in the Supabase SQL Editor."
+            )
+        else:
+            detail = "Supabase could not save the enquiry. Check the enquiries table setup."
+        raise HTTPException(status_code=503, detail=detail) from error
+    except HTTPError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="The enquiry service cannot reach Supabase right now.",
+        ) from error
     return {"status": "received"}
 
 
