@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from httpx import HTTPError
 from pydantic import BaseModel, EmailStr, Field
 from postgrest.exceptions import APIError
+from postgrest.types import ReturnMethod
 from supabase import Client, create_client
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -24,6 +25,7 @@ load_dotenv(BASE_DIR / ".env.local")
 load_dotenv(BASE_DIR / ".env")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY")
+SUPABASE_PUBLISHABLE_KEY = os.getenv("SUPABASE_PUBLISHABLE_KEY") or os.getenv("SUPABASE_KEY")
 ADMIN_USERNAME = os.getenv("WCC_ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("WCC_ADMIN_PASSWORD", "ChangeMe123!")
 SECRET_KEY = os.getenv("WCC_SECRET_KEY", "development-secret-change-before-production")
@@ -39,13 +41,12 @@ MEDIA_TYPES = {
     "video/quicktime": ("video", ".mov", 50 * 1024 * 1024),
 }
 
-if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
-    raise RuntimeError(
-        "Supabase is not configured. Set SUPABASE_URL and SUPABASE_SECRET_KEY "
-        "in the environment, backend/.env.local, or backend/.env."
-    )
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SECRET_KEY)
+SUPABASE_API_KEY = SUPABASE_SECRET_KEY or SUPABASE_PUBLISHABLE_KEY
+supabase: Client | None = (
+    create_client(SUPABASE_URL, SUPABASE_API_KEY)
+    if SUPABASE_URL and SUPABASE_API_KEY
+    else None
+)
 
 Category = Literal["news_events", "early_learning", "primary_school", "secondary_school", "student_life"]
 
@@ -111,13 +112,36 @@ def require_admin(authorization: str | None = Header(default=None)) -> str:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired or invalid") from None
 
 
+def require_database(secret: bool = False) -> Client:
+    if not supabase:
+        raise HTTPException(
+            status_code=503,
+            detail="Supabase is not configured. Add SUPABASE_URL and a Supabase API key.",
+        )
+    if secret and not SUPABASE_SECRET_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Admin database access requires SUPABASE_SECRET_KEY in backend/.env.local.",
+        )
+    return supabase
+
+
+def require_admin_database(_: str = Depends(require_admin)) -> Client:
+    return require_database(secret=True)
+
+
 @app.get("/api/health")
 def health_check():
+    database = require_database()
     try:
-        supabase.table("posts").select("id").limit(1).execute()
+        database.table("posts").select("id").limit(1).execute()
     except (APIError, HTTPError) as error:
         raise HTTPException(status_code=503, detail="Database connection unavailable") from error
-    return {"status": "healthy", "database": "supabase"}
+    return {
+        "status": "healthy",
+        "database": "supabase",
+        "access": "admin" if SUPABASE_SECRET_KEY else "public-only",
+    }
 
 
 @app.post("/api/auth/login")
@@ -133,7 +157,7 @@ def admin_profile(username: str = Depends(require_admin)):
 
 
 @app.post("/api/media", status_code=201)
-async def upload_post_media(file: UploadFile = File(...), _: str = Depends(require_admin)):
+async def upload_post_media(file: UploadFile = File(...), database: Client = Depends(require_admin_database)):
     media_config = MEDIA_TYPES.get(file.content_type or "")
     if not media_config:
         raise HTTPException(
@@ -150,7 +174,7 @@ async def upload_post_media(file: UploadFile = File(...), _: str = Depends(requi
 
     media_path = f"posts/{uuid.uuid4().hex}{extension}"
     try:
-        bucket = supabase.storage.from_(MEDIA_BUCKET)
+        bucket = database.storage.from_(MEDIA_BUCKET)
         bucket.upload(media_path, contents, {"content-type": file.content_type, "upsert": "false"})
         media_url = bucket.get_public_url(media_path)
     except Exception as error:
@@ -161,10 +185,13 @@ async def upload_post_media(file: UploadFile = File(...), _: str = Depends(requi
 
 @app.get("/api/posts")
 def list_posts(category: Category | None = None, admin: bool = False, authorization: str | None = Header(default=None)):
-    query = supabase.table("posts").select("*")
     if admin:
         require_admin(authorization)
+        database = require_database(secret=True)
     else:
+        database = require_database()
+    query = database.table("posts").select("*")
+    if not admin:
         query = query.eq("published", True)
     if category:
         query = query.eq("category", category)
@@ -172,55 +199,59 @@ def list_posts(category: Category | None = None, admin: bool = False, authorizat
 
 
 @app.post("/api/posts", status_code=201)
-def create_post(post: PostInput, _: str = Depends(require_admin)):
-    result = supabase.table("posts").insert(post.model_dump()).execute()
+def create_post(post: PostInput, database: Client = Depends(require_admin_database)):
+    result = database.table("posts").insert(post.model_dump()).execute()
     return result.data[0]
 
 
 @app.put("/api/posts/{post_id}")
-def update_post(post_id: int, post: PostInput, _: str = Depends(require_admin)):
-    current = supabase.table("posts").select("media_path").eq("id", post_id).execute().data
+def update_post(post_id: int, post: PostInput, database: Client = Depends(require_admin_database)):
+    current = database.table("posts").select("media_path").eq("id", post_id).execute().data
     if not current:
         raise HTTPException(status_code=404, detail="Post not found")
     previous_media_path = current[0].get("media_path")
-    result = supabase.table("posts").update(post.model_dump()).eq("id", post_id).execute()
+    result = database.table("posts").update(post.model_dump()).eq("id", post_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Post not found")
     if previous_media_path and previous_media_path != post.media_path:
         try:
-            supabase.storage.from_(MEDIA_BUCKET).remove([previous_media_path])
+            database.storage.from_(MEDIA_BUCKET).remove([previous_media_path])
         except Exception:
             pass
     return result.data[0]
 
 
 @app.delete("/api/posts/{post_id}", status_code=204)
-def delete_post(post_id: int, _: str = Depends(require_admin)):
-    result = supabase.table("posts").delete().eq("id", post_id).execute()
+def delete_post(post_id: int, database: Client = Depends(require_admin_database)):
+    result = database.table("posts").delete().eq("id", post_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Post not found")
     media_path = result.data[0].get("media_path")
     if media_path:
         try:
-            supabase.storage.from_(MEDIA_BUCKET).remove([media_path])
+            database.storage.from_(MEDIA_BUCKET).remove([media_path])
         except Exception:
             pass
 
 
 @app.post("/api/enquiries", status_code=201)
 def create_enquiry(enquiry: EnquiryInput):
-    result = supabase.table("enquiries").insert(enquiry.model_dump()).execute()
-    return {"id": result.data[0]["id"], "status": "received"}
+    # Visitors may insert enquiries but must never be able to read them back.
+    # A minimal response avoids requiring a SELECT policy on private records.
+    require_database().table("enquiries").insert(
+        enquiry.model_dump(), returning=ReturnMethod.minimal
+    ).execute()
+    return {"status": "received"}
 
 
 @app.get("/api/enquiries")
-def list_enquiries(_: str = Depends(require_admin)):
-    return supabase.table("enquiries").select("*").order("created_at", desc=True).execute().data
+def list_enquiries(database: Client = Depends(require_admin_database)):
+    return database.table("enquiries").select("*").order("created_at", desc=True).execute().data
 
 
 @app.patch("/api/enquiries/{enquiry_id}")
-def update_enquiry(enquiry_id: int, change: EnquiryStatus, _: str = Depends(require_admin)):
-    result = supabase.table("enquiries").update({"status": change.status}).eq("id", enquiry_id).execute()
+def update_enquiry(enquiry_id: int, change: EnquiryStatus, database: Client = Depends(require_admin_database)):
+    result = database.table("enquiries").update({"status": change.status}).eq("id", enquiry_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Enquiry not found")
     return {"id": enquiry_id, "status": change.status}
@@ -228,40 +259,4 @@ def update_enquiry(enquiry_id: int, change: EnquiryStatus, _: str = Depends(requ
 
 @app.get("/api/search")
 def search(q: str = Query(min_length=1, max_length=100)):
-    return supabase.rpc("search_published_posts", {"search_term": q}).execute().data
-
-
-
-
-
-
-
-
-import os
-from flask import Flask
-from supabase import create_client, Client
-from dotenv import load_dotenv
-
-load_dotenv()
-
-app = Flask(__name__)
-
-supabase: Client = create_client(
-    os.environ.get("SUPABASE_URL"),
-    os.environ.get("SUPABASE_KEY")
-)
-
-@app.route('/')
-def index():
-    response = supabase.table('todos').select("*").execute()
-    todos = response.data
-
-    html = '<h1>Todos</h1><ul>'
-    for todo in todos:
-        html += f'<li>{todo["name"]}</li>'
-    html += '</ul>'
-
-    return html
-
-if __name__ == '__main__':
-    app.run(debug=True)
+    return require_database().rpc("search_published_posts", {"search_term": q}).execute().data

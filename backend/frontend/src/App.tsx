@@ -6,7 +6,6 @@ import facilitiesImage from './assets/IMG_0354.jpg'
 import transportImage from './assets/IMG_0493.jpg'
 import learningImage from './assets/Picture1.jpg'
 import schoolLogo from './assets/WCC LOGO.png'
-import nationalEmblem from './assets/National_emblem_of_Papua_New_Guinea.svg.png'
 
 const programs = [
   { icon: '✦', title: 'Early Learning', ages: 'Ages 3–5', text: 'A joyful, play-led foundation that builds confidence, curiosity and belonging.' },
@@ -54,6 +53,8 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [sent, setSent] = useState(false)
+  const [formError, setFormError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [news, setNews] = useState<NewsItem[]>(defaultNews)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -83,9 +84,23 @@ function App() {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const data = new FormData(event.currentTarget)
-    const response = await fetch('/api/enquiries', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ name:data.get('name'), email:data.get('email'), year_level:data.get('year_level'), message:data.get('message') }) })
-    if (response.ok) setSent(true)
+    const form = event.currentTarget
+    setFormError('')
+    setSubmitting(true)
+    const data = new FormData(form)
+    try {
+      const response = await fetch('/api/enquiries', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ name:data.get('name'), email:data.get('email'), year_level:data.get('year_level'), message:data.get('message') }) })
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.detail || 'We could not send your enquiry. Please try again.')
+      }
+      setSent(true)
+      form.reset()
+    } catch(error) {
+      setFormError(error instanceof Error ? error.message : 'We could not send your enquiry. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const runSearch = async (event: FormEvent<HTMLFormElement>) => {
@@ -225,7 +240,14 @@ function App() {
       </main>
 
       <footer>
-        <div className="footer-main"><div className="footer-brand"><a className="brand" href="#home"><img className="brand-logo" src={schoolLogo} alt="Waigani Christian College crest" /><span><strong>Waigani Christian</strong><small>College · Papua New Guinea</small></span></a><p>Growing minds, shaping character and building community.</p></div><div className="footer-explore"><h4>Explore</h4><a href="#about">Our school</a><a href="#learning">Learning</a><a href="#life">Student life</a><a href="#news">News & events</a></div><div className="footer-visit"><img className="national-emblem" src={nationalEmblem} alt="National emblem of Papua New Guinea" /><div><h4>Visit us</h4><p>Waigani Campus<br />Papua New Guinea</p><a href="mailto:info@wcc.ac.pg">info@wcc.ac.pg</a><a href="tel:+67572714798">72714798</a></div></div></div>
+        <div className="footer-main">
+          <div className="footer-brand">
+            <a className="brand" href="#home"><img className="brand-logo" src={schoolLogo} alt="Waigani Christian College crest" /><span><strong>Waigani Christian</strong><small>College · Papua New Guinea</small></span></a>
+            <blockquote className="footer-scripture"><p>Train up a child in the way he should go, and when he is old, he shall not depart from it.</p><cite>Proverbs 22:6</cite></blockquote>
+          </div>
+          <div className="footer-explore"><h4>Explore</h4><a href="#about">Our school</a><a href="#learning">Learning</a><a href="#life">Student life</a><a href="#news">News & events</a></div>
+          <div className="footer-visit"><h4>Find our campus</h4><div className="footer-map-frame"><iframe className="footer-map" title="Google Map showing Waigani Christian College" src="https://www.google.com/maps?q=Waigani+Christian+College,+Waigani+Heights,+Port+Moresby,+Papua+New+Guinea&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen></iframe></div><div className="footer-contact"><p>Waigani Heights<br />Port Moresby, Papua New Guinea</p><span><a className="map-link" href="https://www.google.com/maps/search/?api=1&query=Waigani+Christian+College+Waigani+Heights+Port+Moresby+Papua+New+Guinea" target="_blank" rel="noreferrer">Open in Google Maps ↗</a><a href="mailto:info@wcc.ac.pg">info@wcc.ac.pg</a><a href="tel:+67572714798">72714798</a></span></div></div>
+        </div>
         <div className="footer-bottom"><span>© 2026 Waigani Christian College. All rights reserved.</span><span className="footer-utility">Privacy · Policies <a href="/admin">Admin login →</a></span></div>
       </footer>
 
@@ -235,7 +257,7 @@ function App() {
         <button onClick={() => setFormOpen(true)}><span aria-hidden="true">&#9993;</span>Enquire</button>
       </nav>
 
-      {formOpen && <div className="modal-backdrop" role="presentation" onMouseDown={() => setFormOpen(false)}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title" onMouseDown={e => e.stopPropagation()}><button className="modal-close" onClick={() => setFormOpen(false)} aria-label="Close">×</button>{sent ? <div className="success"><span>✓</span><h2>Thank you.</h2><p>Our enrolments team will be in touch shortly.</p><button className="button navy" onClick={() => { setFormOpen(false); setSent(false) }}>Done</button></div> : <><p className="eyebrow">Start a conversation</p><h2 id="form-title">Enquire about Waigani Christian College</h2><p>Tell us a little about your family and our team will contact you.</p><form onSubmit={submit}><label>Parent or carer name<input required name="name" autoFocus /></label><label>Email address<input required type="email" name="email" /></label><label>Student year level<select name="year_level" required defaultValue=""><option value="" disabled>Select a year level</option><option>Early Learning</option><option>Primary School</option><option>Secondary School</option></select></label><label>Message <span>(optional)</span><textarea name="message" rows={3}></textarea></label><button className="button navy" type="submit">Send enquiry <Arrow /></button></form></>}</div></div>}
+      {formOpen && <div className="modal-backdrop" role="presentation" onMouseDown={() => setFormOpen(false)}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title" onMouseDown={e => e.stopPropagation()}><button className="modal-close" onClick={() => setFormOpen(false)} aria-label="Close">×</button>{sent ? <div className="success"><span>✓</span><h2>Thank you.</h2><p>Our enrolments team will be in touch shortly.</p><button className="button navy" onClick={() => { setFormOpen(false); setSent(false); setFormError('') }}>Done</button></div> : <><p className="eyebrow">Start a conversation</p><h2 id="form-title">Enquire about Waigani Christian College</h2><p>Tell us a little about your family and our team will contact you.</p><form onSubmit={submit}><label>Parent or carer name<input required name="name" autoFocus /></label><label>Email address<input required type="email" name="email" /></label><label>Student year level<select name="year_level" required defaultValue=""><option value="" disabled>Select a year level</option><option>Early Learning</option><option>Primary School</option><option>Secondary School</option></select></label><label>Message <span>(optional)</span><textarea name="message" rows={3}></textarea></label>{formError&&<div className="form-error" role="alert">{formError}</div>}<button className="button navy" type="submit" disabled={submitting}>{submitting?'Sending…':<>Send enquiry <Arrow /></>}</button></form></>}</div></div>}
 
       {searchOpen && <div className="search-backdrop" onMouseDown={() => setSearchOpen(false)}><section className="search-panel" role="dialog" aria-modal="true" aria-labelledby="search-title" onMouseDown={event=>event.stopPropagation()}><button className="search-close" onClick={()=>setSearchOpen(false)} aria-label="Close search">×</button><p className="eyebrow">Find it quickly</p><h2 id="search-title">Search the college</h2><form onSubmit={runSearch}><input value={searchQuery} onChange={event=>setSearchQuery(event.target.value)} placeholder="Search every page and published post…" autoFocus/><button type="submit">Search →</button></form><div className="search-results">{searching?<p>Searching…</p>:searchResults.length>0?searchResults.map(result=><a key={result.id} href={result.href} onClick={()=>setSearchOpen(false)}><small>{result.category.replaceAll('_',' ')}</small><strong>{result.title}{result.promoted&&<b>Featured</b>}</strong><span>{result.summary}</span></a>):searchQuery.trim()?<p>No matching information found.</p>:<p>Enter a word to search the whole website.</p>}</div></section></div>}
     </div>

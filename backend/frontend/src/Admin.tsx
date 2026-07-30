@@ -20,8 +20,13 @@ async function api(path:string, options:RequestInit = {}) {
   const headers = new Headers(options.headers)
   if (!(options.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type','application/json')
   if (token) headers.set('Authorization',`Bearer ${token}`)
-  const response = await fetch(path, { ...options, headers })
-  if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Request failed')
+  let response:Response
+  try { response = await fetch(path, { ...options, headers }) }
+  catch { throw new Error('The backend is offline. Start FastAPI on port 8000 and try again.') }
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}))
+    throw new Error(error.detail || `Request failed (${response.status})`)
+  }
   return response.status === 204 ? null : response.json()
 }
 
@@ -44,7 +49,10 @@ export default function Admin() {
   },[])
 
   useEffect(() => {
-    api('/api/admin/me').then(() => { setAuthenticated(true); return loadData() }).catch(() => sessionStorage.removeItem('wcc_admin_token')).finally(() => setLoading(false))
+    api('/api/admin/me').then(() => {
+      setAuthenticated(true)
+      return loadData().catch(error => setNotice(error instanceof Error ? error.message : 'Database unavailable'))
+    }).catch(() => sessionStorage.removeItem('wcc_admin_token')).finally(() => setLoading(false))
   },[loadData])
 
   async function login(event:FormEvent<HTMLFormElement>) {
@@ -52,7 +60,8 @@ export default function Admin() {
     const data = new FormData(event.currentTarget)
     try {
       const result = await api('/api/auth/login',{method:'POST',body:JSON.stringify({username:data.get('username'),password:data.get('password')})})
-      sessionStorage.setItem('wcc_admin_token',result.access_token); setAuthenticated(true); await loadData()
+      sessionStorage.setItem('wcc_admin_token',result.access_token); setAuthenticated(true)
+      try { await loadData() } catch(error) { setNotice(error instanceof Error ? `Signed in. ${error.message}` : 'Signed in, but the database is unavailable.') }
     } catch(error) { setNotice(error instanceof Error ? error.message : 'Unable to sign in') }
   }
 

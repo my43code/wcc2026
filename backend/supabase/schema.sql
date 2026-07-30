@@ -104,8 +104,8 @@ as $$
   limit 20;
 $$;
 
-revoke all on function public.search_published_posts(text) from public, anon, authenticated;
-grant execute on function public.search_published_posts(text) to service_role;
+revoke all on function public.search_published_posts(text) from public;
+grant execute on function public.search_published_posts(text) to anon, authenticated, service_role;
 
 alter table public.posts enable row level security;
 alter table public.enquiries enable row level security;
@@ -126,4 +126,3 @@ with check (status = 'new');
 
 -- The FastAPI server uses a SUPABASE_SECRET_KEY for all database access.
 -- Never expose a secret key in Vite or other browser code.
-
