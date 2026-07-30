@@ -5,10 +5,11 @@ import json
 import os
 import secrets
 import time
+import uuid
 from pathlib import Path
 from typing import Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from httpx import HTTPError
@@ -17,6 +18,9 @@ from postgrest.exceptions import APIError
 from supabase import Client, create_client
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+# Real deployment environment variables keep priority. Locally, private
+# overrides in .env.local take priority over the shared .env file.
+load_dotenv(BASE_DIR / ".env.local")
 load_dotenv(BASE_DIR / ".env")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY")
@@ -24,11 +28,21 @@ ADMIN_USERNAME = os.getenv("WCC_ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("WCC_ADMIN_PASSWORD", "ChangeMe123!")
 SECRET_KEY = os.getenv("WCC_SECRET_KEY", "development-secret-change-before-production")
 TOKEN_TTL = 8 * 60 * 60
+MEDIA_BUCKET = "post-media"
+MEDIA_TYPES = {
+    "image/jpeg": ("image", ".jpg", 10 * 1024 * 1024),
+    "image/png": ("image", ".png", 10 * 1024 * 1024),
+    "image/webp": ("image", ".webp", 10 * 1024 * 1024),
+    "image/gif": ("image", ".gif", 10 * 1024 * 1024),
+    "video/mp4": ("video", ".mp4", 50 * 1024 * 1024),
+    "video/webm": ("video", ".webm", 50 * 1024 * 1024),
+    "video/quicktime": ("video", ".mov", 50 * 1024 * 1024),
+}
 
 if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
     raise RuntimeError(
         "Supabase is not configured. Set SUPABASE_URL and SUPABASE_SECRET_KEY "
-        "in backend/.env."
+        "in the environment, backend/.env.local, or backend/.env."
     )
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SECRET_KEY)
@@ -58,6 +72,9 @@ class PostInput(BaseModel):
     event_date: str | None = None
     published: bool = True
     promoted: bool = False
+    media_url: str | None = Field(default=None, max_length=2000)
+    media_type: Literal["image", "video"] | None = None
+    media_path: str | None = Field(default=None, max_length=500)
 
 
 class EnquiryInput(BaseModel):
@@ -115,6 +132,33 @@ def admin_profile(username: str = Depends(require_admin)):
     return {"username": username, "role": "Administrator"}
 
 
+@app.post("/api/media", status_code=201)
+async def upload_post_media(file: UploadFile = File(...), _: str = Depends(require_admin)):
+    media_config = MEDIA_TYPES.get(file.content_type or "")
+    if not media_config:
+        raise HTTPException(
+            status_code=415,
+            detail="Use a JPG, PNG, WebP, GIF, MP4, WebM, or MOV file.",
+        )
+
+    media_type, extension, size_limit = media_config
+    contents = await file.read(size_limit + 1)
+    await file.close()
+    if len(contents) > size_limit:
+        limit_mb = size_limit // (1024 * 1024)
+        raise HTTPException(status_code=413, detail=f"{media_type.title()} must be {limit_mb} MB or smaller.")
+
+    media_path = f"posts/{uuid.uuid4().hex}{extension}"
+    try:
+        bucket = supabase.storage.from_(MEDIA_BUCKET)
+        bucket.upload(media_path, contents, {"content-type": file.content_type, "upsert": "false"})
+        media_url = bucket.get_public_url(media_path)
+    except Exception as error:
+        raise HTTPException(status_code=502, detail="Unable to upload media to Supabase Storage.") from error
+
+    return {"media_url": media_url, "media_type": media_type, "media_path": media_path}
+
+
 @app.get("/api/posts")
 def list_posts(category: Category | None = None, admin: bool = False, authorization: str | None = Header(default=None)):
     query = supabase.table("posts").select("*")
@@ -135,9 +179,18 @@ def create_post(post: PostInput, _: str = Depends(require_admin)):
 
 @app.put("/api/posts/{post_id}")
 def update_post(post_id: int, post: PostInput, _: str = Depends(require_admin)):
+    current = supabase.table("posts").select("media_path").eq("id", post_id).execute().data
+    if not current:
+        raise HTTPException(status_code=404, detail="Post not found")
+    previous_media_path = current[0].get("media_path")
     result = supabase.table("posts").update(post.model_dump()).eq("id", post_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Post not found")
+    if previous_media_path and previous_media_path != post.media_path:
+        try:
+            supabase.storage.from_(MEDIA_BUCKET).remove([previous_media_path])
+        except Exception:
+            pass
     return result.data[0]
 
 
@@ -146,6 +199,12 @@ def delete_post(post_id: int, _: str = Depends(require_admin)):
     result = supabase.table("posts").delete().eq("id", post_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Post not found")
+    media_path = result.data[0].get("media_path")
+    if media_path:
+        try:
+            supabase.storage.from_(MEDIA_BUCKET).remove([media_path])
+        except Exception:
+            pass
 
 
 @app.post("/api/enquiries", status_code=201)
@@ -168,5 +227,41 @@ def update_enquiry(enquiry_id: int, change: EnquiryStatus, _: str = Depends(requ
 
 
 @app.get("/api/search")
-def search(q: str = Query(min_length=2, max_length=100)):
+def search(q: str = Query(min_length=1, max_length=100)):
     return supabase.rpc("search_published_posts", {"search_term": q}).execute().data
+
+
+
+
+
+
+
+
+import os
+from flask import Flask
+from supabase import create_client, Client
+from dotenv import load_dotenv
+
+load_dotenv()
+
+app = Flask(__name__)
+
+supabase: Client = create_client(
+    os.environ.get("SUPABASE_URL"),
+    os.environ.get("SUPABASE_KEY")
+)
+
+@app.route('/')
+def index():
+    response = supabase.table('todos').select("*").execute()
+    todos = response.data
+
+    html = '<h1>Todos</h1><ul>'
+    for todo in todos:
+        html += f'<li>{todo["name"]}</li>'
+    html += '</ul>'
+
+    return html
+
+if __name__ == '__main__':
+    app.run(debug=True)

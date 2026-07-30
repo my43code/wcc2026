@@ -20,11 +20,18 @@ Used by the homepage news list, public search, and the admin content manager.
 | `event_date` | Optional calendar date |
 | `published` | Controls public visibility |
 | `promoted` | Moves featured content ahead of other posts |
+| `media_url` | Optional public Supabase Storage URL for an image or video |
+| `media_type` | Optional `image` or `video` display type |
+| `media_path` | Storage object path used for cleanup when a post is deleted |
 | `created_at` | Creation timestamp |
 | `updated_at` | Last-edit timestamp |
 
 API usage: `GET/POST /api/posts`, `PUT/DELETE /api/posts/{id}`, and
 `GET /api/search`.
+
+Optional post media is uploaded by administrators through `POST /api/media` and
+stored in the public Supabase Storage bucket named `post-media`. Images are
+limited to 10 MB and videos to 50 MB.
 
 ### `enquiries`
 
@@ -49,7 +56,8 @@ Admin username, password, and token-signing secret are currently read from
 database tables. The browser keeps only `wcc_admin_token` in `sessionStorage`;
 it expires after eight hours and is removed on sign-out.
 
-Configure these server-only variables in `backend/.env`:
+Configure these server-only variables in `backend/.env.local` for local
+development, or in your hosting provider's environment-variable settings:
 
 ```env
 SUPABASE_URL=https://PROJECT_REF.supabase.co
