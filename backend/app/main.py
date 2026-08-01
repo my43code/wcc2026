@@ -19,10 +19,12 @@ from postgrest.types import ReturnMethod
 from supabase import Client, create_client
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+PROJECT_DIR = BASE_DIR.parent
 # Real deployment environment variables keep priority. Locally, private
-# overrides in .env.local take priority over the shared .env file.
+# overrides in backend/.env.local take priority over shared env files.
 load_dotenv(BASE_DIR / ".env.local")
 load_dotenv(BASE_DIR / ".env")
+load_dotenv(PROJECT_DIR / ".env")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY")
 SUPABASE_PUBLISHABLE_KEY = os.getenv("SUPABASE_PUBLISHABLE_KEY") or os.getenv("SUPABASE_KEY")
@@ -87,6 +89,30 @@ class EnquiryInput(BaseModel):
 
 class EnquiryStatus(BaseModel):
     status: Literal["new", "in_progress", "resolved"]
+
+
+class StaffInput(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    job_title: str = Field(min_length=2, max_length=160)
+    email: EmailStr
+    linkedin_url: str | None = Field(default=None, max_length=500)
+    photo_url: str | None = Field(default=None, max_length=2000)
+    photo_path: str | None = Field(default=None, max_length=500)
+    sort_order: int = Field(default=0, ge=0, le=10000)
+    published: bool = True
+
+
+class CareerInput(BaseModel):
+    title: str = Field(min_length=3, max_length=160)
+    department: str = Field(default="", max_length=120)
+    location: str = Field(default="Waigani Heights, Port Moresby", max_length=160)
+    employment_type: Literal["Full-time", "Part-time", "Contract", "Casual", "Internship"] = "Full-time"
+    summary: str = Field(min_length=5, max_length=500)
+    description: str = Field(default="", max_length=12000)
+    application_email: EmailStr
+    application_url: str | None = Field(default=None, max_length=2000)
+    closing_date: str | None = None
+    published: bool = True
 
 
 def encode_token(username: str) -> str:
@@ -271,6 +297,97 @@ def update_enquiry(enquiry_id: int, change: EnquiryStatus, database: Client = De
     if not result.data:
         raise HTTPException(status_code=404, detail="Enquiry not found")
     return {"id": enquiry_id, "status": change.status}
+
+
+@app.get("/api/staff")
+def list_staff(admin: bool = False, authorization: str | None = Header(default=None)):
+    if admin:
+        require_admin(authorization)
+        database = require_database(secret=True)
+    else:
+        database = require_database()
+    query = database.table("staff_profiles").select("*")
+    if not admin:
+        query = query.eq("published", True)
+    return query.order("sort_order").order("name").execute().data
+
+
+@app.post("/api/staff", status_code=201)
+def create_staff(profile: StaffInput, database: Client = Depends(require_admin_database)):
+    result = database.table("staff_profiles").insert(profile.model_dump(mode="json")).execute()
+    return result.data[0]
+
+
+@app.put("/api/staff/{staff_id}")
+def update_staff(staff_id: int, profile: StaffInput, database: Client = Depends(require_admin_database)):
+    current = database.table("staff_profiles").select("photo_path").eq("id", staff_id).execute().data
+    if not current:
+        raise HTTPException(status_code=404, detail="Staff profile not found")
+    previous_path = current[0].get("photo_path")
+    result = database.table("staff_profiles").update(profile.model_dump(mode="json")).eq("id", staff_id).execute()
+    if previous_path and previous_path != profile.photo_path:
+        try:
+            database.storage.from_(MEDIA_BUCKET).remove([previous_path])
+        except Exception:
+            pass
+    return result.data[0]
+
+
+@app.delete("/api/staff/{staff_id}", status_code=204)
+def delete_staff(staff_id: int, database: Client = Depends(require_admin_database)):
+    result = database.table("staff_profiles").delete().eq("id", staff_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Staff profile not found")
+    photo_path = result.data[0].get("photo_path")
+    if photo_path:
+        try:
+            database.storage.from_(MEDIA_BUCKET).remove([photo_path])
+        except Exception:
+            pass
+
+
+@app.get("/api/careers")
+def list_careers(admin: bool = False, authorization: str | None = Header(default=None)):
+    if admin:
+        require_admin(authorization)
+        database = require_database(secret=True)
+    else:
+        database = require_database()
+    query = database.table("career_opportunities").select("*")
+    if not admin:
+        query = query.eq("published", True)
+    try:
+        return query.order("closing_date", desc=False, nullsfirst=False).order("created_at", desc=True).execute().data
+    except APIError as error:
+        if error.code == "PGRST205":
+            if admin:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Careers database setup is pending. Run backend/supabase/schema.sql in the Supabase SQL Editor.",
+                ) from error
+            return []
+        raise
+
+
+@app.post("/api/careers", status_code=201)
+def create_career(career: CareerInput, database: Client = Depends(require_admin_database)):
+    result = database.table("career_opportunities").insert(career.model_dump(mode="json")).execute()
+    return result.data[0]
+
+
+@app.put("/api/careers/{career_id}")
+def update_career(career_id: int, career: CareerInput, database: Client = Depends(require_admin_database)):
+    result = database.table("career_opportunities").update(career.model_dump(mode="json")).eq("id", career_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Career opportunity not found")
+    return result.data[0]
+
+
+@app.delete("/api/careers/{career_id}", status_code=204)
+def delete_career(career_id: int, database: Client = Depends(require_admin_database)):
+    result = database.table("career_opportunities").delete().eq("id", career_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Career opportunity not found")
 
 
 @app.get("/api/search")

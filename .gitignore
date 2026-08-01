@@ -1,5 +1,8 @@
 backend/.env
 backend/.env.local
+backend/frontend/.env
+backend/frontend/.env.local
+.env
 backend/wcc.db
 **/__pycache__/
 *.py[cod]

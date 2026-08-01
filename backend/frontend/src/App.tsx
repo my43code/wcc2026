@@ -86,11 +86,13 @@ function App() {
   const [searching, setSearching] = useState(false)
   const [heroSlide, setHeroSlide] = useState(0)
   const [sliderPaused, setSliderPaused] = useState(false)
+  const [shareNotice, setShareNotice] = useState('')
+  const [shareTarget, setShareTarget] = useState<NewsItem|null>(null)
 
   useEffect(() => {
-    document.body.style.overflow = formOpen || searchOpen || selectedNews ? 'hidden' : ''
+    document.body.style.overflow = formOpen || searchOpen || selectedNews || shareTarget ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [formOpen, searchOpen, selectedNews])
+  }, [formOpen, searchOpen, selectedNews, shareTarget])
 
   useEffect(() => {
     const titles: Record<string, string> = {
@@ -120,7 +122,13 @@ function App() {
     fetch('/api/posts').then(response => response.ok ? response.json() : Promise.reject()).then((posts: Array<{id:number;title:string;summary:string;body:string;category:string;event_date:string|null;media_url:string|null;media_type:'image'|'video'|null}>) => {
       const labels:Record<string,string> = {news_events:'News',early_learning:'Early learning',primary_school:'Primary',secondary_school:'Secondary',student_life:'Student life'}
       const months=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
-      setNews(posts.slice(0,6).map(post => { const date=post.event_date?new Date(`${post.event_date}T00:00:00`):new Date(); return {id:post.id,date:`${String(date.getDate()).padStart(2,'0')} ${months[date.getMonth()]}`,tag:labels[post.category]||'College',title:post.title,text:post.summary,body:post.body,media_url:post.media_url,media_type:post.media_type} }))
+      const mappedNews:NewsItem[] = posts.slice(0,6).map(post => { const date=post.event_date?new Date(`${post.event_date}T00:00:00`):new Date(); return {id:post.id,date:`${String(date.getDate()).padStart(2,'0')} ${months[date.getMonth()]}`,tag:labels[post.category]||'College',title:post.title,text:post.summary,body:post.body,media_url:post.media_url,media_type:post.media_type} })
+      setNews(mappedNews)
+      const sharedStoryId = new URLSearchParams(window.location.search).get('story')
+      if (sharedStoryId) {
+        const sharedStory = mappedNews.find(item => String(item.id) === sharedStoryId)
+        if (sharedStory) setSelectedNews(sharedStory)
+      }
     }).catch(() => undefined)
   }, [])
 
@@ -165,6 +173,32 @@ function App() {
   }
 
   const closeMenu = () => setMenuOpen(false)
+
+  const getNewsShareUrl = (item:NewsItem) => item.id ? `${window.location.origin}/news-events?story=${item.id}` : `${window.location.origin}/news-events`
+
+  const copyNewsLink = async (item:NewsItem) => {
+    const url = getNewsShareUrl(item)
+    try {
+      await navigator.clipboard.writeText(url)
+      setShareTarget(null)
+      setShareNotice('Story link copied to your clipboard.')
+      window.setTimeout(() => setShareNotice(''), 3500)
+    } catch { window.prompt('Copy this story link:', url) }
+  }
+
+  const shareNews = async (item:NewsItem) => {
+    const url = getNewsShareUrl(item)
+    const shareData = { title:item.title, text:item.text, url }
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData)
+        setShareTarget(null)
+      } else await copyNewsLink(item)
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      window.prompt('Copy this story link:', url)
+    }
+  }
 
   return (
     <div className={`site-shell page-${pageClass}`}>
@@ -340,7 +374,7 @@ function App() {
                 {item.media_type==='video'&&<span className="media-badge">Video</span>}
               </div>
               <div className="news-copy"><small>{item.tag}</small><h3>{item.title}</h3><p>{item.text}</p></div>
-              <button className="view-story" type="button" onClick={() => setSelectedNews(item)}>View more <Arrow /></button>
+              <div className="news-card-actions"><button className="view-story" type="button" onClick={() => setSelectedNews(item)}>View more <Arrow /></button><button className="share-story" type="button" onClick={() => setShareTarget(item)} aria-label={`Share ${item.title}`}>Share <span aria-hidden="true">↗</span></button></div>
             </article>)}
           </div>
         </section>}
@@ -381,7 +415,11 @@ function App() {
 
       {formOpen && <div className="modal-backdrop" role="presentation" onMouseDown={() => setFormOpen(false)}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title" onMouseDown={e => e.stopPropagation()}><button className="modal-close" onClick={() => setFormOpen(false)} aria-label="Close">×</button>{sent ? <div className="success"><span>✓</span><h2>Thank you.</h2><p>Our enrolments team will be in touch shortly.</p><button className="button navy" onClick={() => { setFormOpen(false); setSent(false); setFormError('') }}>Done</button></div> : <><p className="eyebrow">Start a conversation</p><h2 id="form-title">Enquire about Waigani Christian College</h2><p>Tell us a little about your family and our team will contact you.</p><form onSubmit={submit}><label>Parent or carer name<input required name="name" autoFocus /></label><label>Email address<input required type="email" name="email" /></label><label>Student year level<select name="year_level" required defaultValue=""><option value="" disabled>Select a year level</option><option>Early Learning</option><option>Primary School</option><option>Secondary School</option></select></label><label>Message <span>(optional)</span><textarea name="message" rows={3}></textarea></label>{formError&&<div className="form-error" role="alert">{formError}</div>}<button className="button navy" type="submit" disabled={submitting}>{submitting?'Sending…':<>Send enquiry <Arrow /></>}</button></form></>}</div></div>}
 
-      {selectedNews && <div className="story-backdrop" role="presentation" onMouseDown={() => setSelectedNews(null)}><article className="story-modal" role="dialog" aria-modal="true" aria-labelledby="story-title" onMouseDown={event => event.stopPropagation()}><button className="story-close" type="button" onClick={() => setSelectedNews(null)} aria-label="Close story">×</button>{selectedNews.media_url&&<div className="story-media">{selectedNews.media_type==='video'?<video src={selectedNews.media_url} controls autoPlay preload="metadata"/>:<img src={selectedNews.media_url} alt={selectedNews.title} />}</div>}<div className="story-content"><div className="story-meta"><span>{selectedNews.tag}</span><time>{selectedNews.date}</time></div><h2 id="story-title">{selectedNews.title}</h2><p className="story-summary">{selectedNews.text}</p>{selectedNews.body&&selectedNews.body!==selectedNews.text&&<div className="story-body">{selectedNews.body.split(/\n+/).filter(Boolean).map((paragraph,index)=><p key={index}>{paragraph}</p>)}</div>}<button className="button navy story-done" type="button" onClick={() => setSelectedNews(null)}>Close story</button></div></article></div>}
+      {selectedNews && <div className="story-backdrop" role="presentation" onMouseDown={() => setSelectedNews(null)}><article className="story-modal" role="dialog" aria-modal="true" aria-labelledby="story-title" onMouseDown={event => event.stopPropagation()}><button className="story-close" type="button" onClick={() => setSelectedNews(null)} aria-label="Close story">×</button>{selectedNews.media_url&&<div className="story-media">{selectedNews.media_type==='video'?<video src={selectedNews.media_url} controls autoPlay preload="metadata"/>:<img src={selectedNews.media_url} alt={selectedNews.title} />}</div>}<div className="story-content"><div className="story-meta"><span>{selectedNews.tag}</span><time>{selectedNews.date}</time></div><h2 id="story-title">{selectedNews.title}</h2><p className="story-summary">{selectedNews.text}</p>{selectedNews.body&&selectedNews.body!==selectedNews.text&&<div className="story-body">{selectedNews.body.split(/\n+/).filter(Boolean).map((paragraph,index)=><p key={index}>{paragraph}</p>)}</div>}<div className="story-actions"><button className="button navy story-done" type="button" onClick={() => setSelectedNews(null)}>Close story</button><button className="button story-share-button" type="button" onClick={() => setShareTarget(selectedNews)}>Share this story ↗</button></div></div></article></div>}
+
+      {shareTarget&&<div className="share-backdrop" role="presentation" onMouseDown={()=>setShareTarget(null)}><section className="share-panel" role="dialog" aria-modal="true" aria-labelledby="share-title" onMouseDown={event=>event.stopPropagation()}><button className="share-close" type="button" onClick={()=>setShareTarget(null)} aria-label="Close sharing options">×</button><p className="eyebrow">Share this story</p><h2 id="share-title">{shareTarget.title}</h2><div className="share-options"><a className="share-option facebook" href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(getNewsShareUrl(shareTarget))}`} target="_blank" rel="noreferrer"><b>f</b><span>Facebook</span></a><a className="share-option whatsapp" href={`https://wa.me/?text=${encodeURIComponent(`${shareTarget.title} ${getNewsShareUrl(shareTarget)}`)}`} target="_blank" rel="noreferrer"><b>◉</b><span>WhatsApp</span></a><button className="share-option copy" type="button" onClick={()=>copyNewsLink(shareTarget)}><b>⧉</b><span>Copy link</span></button><button className="share-option more" type="button" onClick={()=>shareNews(shareTarget)}><b>↗</b><span>More apps</span></button></div><p className="share-help">Choose More apps to share through Messenger, email, SMS or another app installed on your device.</p></section></div>}
+
+      {shareNotice&&<div className="share-notice" role="status">✓ {shareNotice}</div>}
 
       {searchOpen && <div className="search-backdrop" onMouseDown={() => setSearchOpen(false)}><section className="search-panel" role="dialog" aria-modal="true" aria-labelledby="search-title" onMouseDown={event=>event.stopPropagation()}><button className="search-close" onClick={()=>setSearchOpen(false)} aria-label="Close search">×</button><p className="eyebrow">Find it quickly</p><h2 id="search-title">Search the college</h2><form onSubmit={runSearch}><input value={searchQuery} onChange={event=>setSearchQuery(event.target.value)} placeholder="Search every page and published post…" autoFocus/><button type="submit">Search →</button></form><div className="search-results">{searching?<p>Searching…</p>:searchResults.length>0?searchResults.map(result=><a key={result.id} href={result.href} onClick={()=>setSearchOpen(false)}><small>{result.category.replaceAll('_',' ')}</small><strong>{result.title}{result.promoted&&<b>Featured</b>}</strong><span>{result.summary}</span></a>):searchQuery.trim()?<p>No matching information found.</p>:<p>Enter a word to search the whole website.</p>}</div></section></div>}
     </div>
