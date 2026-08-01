@@ -4,7 +4,7 @@ import './index.css'
 import App from './App.tsx'
 import Admin from './Admin.tsx'
 
-const isAdmin = window.location.pathname.startsWith('/admin')
+const isAdmin = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

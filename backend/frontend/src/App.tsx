@@ -6,6 +6,13 @@ import facilitiesImage from './assets/IMG_0354.jpg'
 import transportImage from './assets/IMG_0493.jpg'
 import learningImage from './assets/Picture1.jpg'
 import schoolLogo from './assets/WCC LOGO.png'
+import earlyChildrenImage from './assets/earlychildren.jpg'
+import campusFacilitiesImage from './assets/facilities (3).jpg'
+import busFleetImage from './assets/IMG_0241.jpg'
+import staffLearningImage from './assets/wcc inservice (5).jpg'
+import staffCollaborationImage from './assets/wcc inservice (9).jpg'
+import computerLabImage from './assets/p2.jpg'
+import libraryImage from './assets/p3.jpg'
 
 const programs = [
   { icon: '✦', title: 'Early Learning', ages: 'Ages 3–5', text: 'A joyful, play-led foundation that builds confidence, curiosity and belonging.' },
@@ -15,6 +22,8 @@ const programs = [
 
 type NewsItem = { id?: number; date: string; tag: string; title: string; text: string; body?:string; media_url?:string|null; media_type?:'image'|'video'|null }
 type SearchResult = { id:number|string; title:string; summary:string; category:string; event_date:string|null; promoted:boolean; href:string }
+type StaffProfile = { id:number; name:string; job_title:string; email:string; linkedin_url:string|null; photo_url:string|null }
+type CareerOpportunity = { id:number; title:string; department:string; location:string; employment_type:string; summary:string; description:string; application_email:string; application_url:string|null; closing_date:string|null }
 
 const defaultNews: NewsItem[] = [
   { date: '12 AUG', tag: 'Community', title: 'College Open Day 2026', text: 'Tour our campus, meet our teachers and see learning in action.' },
@@ -27,6 +36,8 @@ const heroSlides = [
   { image: facilitiesImage, alt: 'Learning facilities at Waigani Christian College', position: 'center' },
   { image: learningImage, alt: 'Students learning together at Waigani Christian College', position: 'center' },
   { image: transportImage, alt: 'Waigani Christian College student transport and community', position: 'center' },
+  { image: campusFacilitiesImage, alt: 'Waigani Christian College campus overlooking Port Moresby', position: 'center' },
+  { image: earlyChildrenImage, alt: 'Young learners at Waigani Christian College', position: 'center 38%' },
 ]
 
 function searchWebsiteSections(query:string):SearchResult[] {
@@ -50,12 +61,24 @@ function searchWebsiteSections(query:string):SearchResult[] {
 function Arrow() { return <span aria-hidden="true">↗</span> }
 
 function App() {
+  const page = window.location.pathname.replace(/\/+$/, '') || '/'
+  const knownPages = new Set(['/our-school', '/about-us', '/learning', '/student-life', '/news-events', '/administration-staff', '/career-opportunities'])
+  const pageClass = knownPages.has(page) ? page.slice(1) : 'home'
+  const isSchool = page === '/our-school'
+  const isLearning = page === '/learning'
+  const isLife = page === '/student-life'
+  const isNews = page === '/news-events'
+  const isStaff = page === '/administration-staff'
+  const isAbout = page === '/about-us'
+  const isCareers = page === '/career-opportunities'
   const [menuOpen, setMenuOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [sent, setSent] = useState(false)
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [news, setNews] = useState<NewsItem[]>(defaultNews)
+  const [staff, setStaff] = useState<StaffProfile[]>([])
+  const [careers, setCareers] = useState<CareerOpportunity[]>([])
   const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -68,6 +91,30 @@ function App() {
     document.body.style.overflow = formOpen || searchOpen || selectedNews ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [formOpen, searchOpen, selectedNews])
+
+  useEffect(() => {
+    const titles: Record<string, string> = {
+      '/': 'Waigani Christian College | Wisdom. Character. Community.',
+      '/our-school': 'Our School | Waigani Christian College',
+      '/learning': 'Learning | Waigani Christian College',
+      '/student-life': 'Student Life | Waigani Christian College',
+      '/news-events': 'News & Events | Waigani Christian College',
+      '/administration-staff': 'Administration & Staff | Waigani Christian College',
+      '/about-us': 'About Us | Waigani Christian College',
+      '/career-opportunities': 'Career Opportunities | Waigani Christian College',
+    }
+    document.title = titles[page] || titles['/']
+  }, [page])
+
+  useEffect(() => {
+    if (!isStaff) return
+    fetch('/api/staff').then(response => response.ok ? response.json() : Promise.reject()).then(setStaff).catch(() => setStaff([]))
+  }, [isStaff])
+
+  useEffect(() => {
+    if (!isCareers) return
+    fetch('/api/careers').then(response => response.ok ? response.json() : Promise.reject()).then(setCareers).catch(() => setCareers([]))
+  }, [isCareers])
 
   useEffect(() => {
     fetch('/api/posts').then(response => response.ok ? response.json() : Promise.reject()).then((posts: Array<{id:number;title:string;summary:string;body:string;category:string;event_date:string|null;media_url:string|null;media_type:'image'|'video'|null}>) => {
@@ -113,46 +160,55 @@ function App() {
       const websiteResults = searchWebsiteSections(query)
       const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
       const postResults:Array<Omit<SearchResult,'href'>> = response.ok ? await response.json() : []
-      setSearchResults([...postResults.map(result=>({...result,href:'#news'})),...websiteResults])
+      setSearchResults([...postResults.map(result=>({...result,href:'/news-events'})),...websiteResults])
     } finally { setSearching(false) }
   }
 
   const closeMenu = () => setMenuOpen(false)
 
   return (
-    <div className="site-shell">
+    <div className={`site-shell page-${pageClass}`}>
       <div className="announcement">
         <p>Enrolments for 2027 are now open</p>
         <button onClick={() => setFormOpen(true)}>Begin your journey <Arrow /></button>
       </div>
 
       <header className="header">
-        <a className="brand" href="#home" aria-label="Waigani Christian College home" onClick={closeMenu}>
+        <a className="brand" href="/" aria-label="Waigani Christian College home" onClick={closeMenu}>
           <img className="brand-logo" src={schoolLogo} alt="Waigani Christian College crest" />
-          <span><strong>Waigani Christian</strong><small>College · Papua New Guinea</small></span>
+          <span><strong>Waigani Christian</strong><small>College · Papua New Guinea</small><em className="header-scripture"><span>Train up a child in the way he should go,</span><span>and when he is old, he shall not depart from it.</span><b>Proverbs 22:6</b></em></span>
         </a>
         <button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-expanded={menuOpen} aria-label="Toggle navigation">
           <span></span><span></span>
         </button>
         <nav className={menuOpen ? 'nav open' : 'nav'} aria-label="Main navigation">
-          <a href="#about" onClick={closeMenu}>Our school</a>
-          <a href="#learning" onClick={closeMenu}>Learning</a>
-          <a href="#life" onClick={closeMenu}>Student life</a>
-          <a href="#news" onClick={closeMenu}>News & events</a>
+          <div className="nav-dropdown">
+            <a href="/about-us" onClick={closeMenu} aria-current={isAbout ? 'page' : undefined}>About us <span aria-hidden="true">⌄</span></a>
+            <div className="nav-dropdown-menu">
+              <a href="/about-us#vision" onClick={closeMenu}>Vision</a>
+              <a href="/about-us#mission" onClick={closeMenu}>Mission</a>
+              <a href="/administration-staff" onClick={closeMenu}>Administration & staff</a>
+              <a href="/career-opportunities" onClick={closeMenu}>Career opportunities</a>
+            </div>
+          </div>
+          <a href="/our-school" onClick={closeMenu} aria-current={isSchool ? 'page' : undefined}>Our school</a>
+          <a href="/learning" onClick={closeMenu} aria-current={isLearning ? 'page' : undefined}>Learning</a>
+          <a href="/student-life" onClick={closeMenu} aria-current={isLife ? 'page' : undefined}>Student life</a>
+          <a href="/news-events" onClick={closeMenu} aria-current={isNews ? 'page' : undefined}>News & events</a>
           <button className="search-button" onClick={() => { setSearchOpen(true); closeMenu() }} aria-label="Search website">⌕ <span>Search</span></button>
           <button className="nav-cta" onClick={() => { setFormOpen(true); closeMenu() }}>Enquire now</button>
         </nav>
       </header>
 
       <main>
-        <section className="hero-section" id="home">
+        {(pageClass === 'home' || isSchool) && <section className="hero-section" id="home">
           <div className="hero-content">
             <p className="eyebrow light">Welcome to Waigani Christian College</p>
             <h1>Every child has<br />a story worth <em>shaping.</em></h1>
             <p className="hero-copy">We are a caring, ambitious school where young people are known, challenged and inspired to make a meaningful difference.</p>
             <div className="hero-actions">
               <button className="button gold" onClick={() => setFormOpen(true)}>Explore enrolment <Arrow /></button>
-              <a href="#about" className="text-link light">Discover our school <span>↓</span></a>
+              <a href="/our-school" className="text-link light">Discover our school <span>→</span></a>
             </div>
           </div>
           <div className="hero-art photo-art" role="region" aria-roledescription="carousel" aria-label="College highlights" onMouseEnter={() => setSliderPaused(true)} onMouseLeave={() => setSliderPaused(false)} onFocus={() => setSliderPaused(true)} onBlur={() => setSliderPaused(false)}>
@@ -167,9 +223,50 @@ function App() {
             </div>
           </div>
           <div className="hero-stat"><strong>One community.</strong><span>Endless possibility.</span></div>
-        </section>
+        </section>}
 
-        <section className="intro section" id="about">
+        {isLearning && <section className="page-hero">
+          <div className="page-hero-copy"><p className="eyebrow light">Learning at Waigani</p><h1>A pathway for<br /><em>every stage.</em></h1><p>Purposeful learning designed around the needs, strengths and potential of every student.</p></div>
+          <div className="page-hero-image" style={{ backgroundImage: `url(${computerLabImage})` }} role="img" aria-label="Students learning in the Waigani Christian College computer laboratory" />
+        </section>}
+
+        {isLife && <section className="page-hero">
+          <div className="page-hero-copy"><p className="eyebrow light">Student life</p><h1>More ways to<br /><em>find your place.</em></h1><p>A welcoming community where students belong, contribute and grow beyond the classroom.</p></div>
+          <div className="page-hero-image" style={{ backgroundImage: `url(${campusImage})` }} role="img" aria-label="Waigani Christian College students together on campus" />
+        </section>}
+
+        {isNews && <section className="page-hero">
+          <div className="page-hero-copy"><p className="eyebrow light">News & events</p><h1>Life at<br /><em>Waigani.</em></h1><p>Stories, celebrations and important dates from across our college community.</p></div>
+          <div className="page-hero-image" style={{ backgroundImage: `url(${facilitiesImage})` }} role="img" aria-label="Waigani Christian College campus facilities" />
+        </section>}
+
+        {isStaff && <section className="page-hero">
+          <div className="page-hero-copy"><p className="eyebrow light">Our people</p><h1>Administration<br />& <em>staff.</em></h1><p>Meet the people who lead, teach and care for our college community.</p></div>
+          <div className="page-hero-image" style={{ backgroundImage: `url(${staffCollaborationImage})` }} role="img" aria-label="Waigani Christian College staff collaborating" />
+        </section>}
+
+        {isAbout && <section className="about-hero">
+          <div className="about-hero-copy"><p className="eyebrow light">About Waigani Christian College</p><h1>Purpose-led.<br /><em>Future-ready.</em></h1><p>We partner with families to develop capable, compassionate young people grounded in Christian faith, wisdom and service.</p><div className="about-hero-actions"><a className="button gold" href="#vision">Our vision <Arrow /></a><a className="text-link light" href="/administration-staff">Meet our people <Arrow /></a></div></div>
+          <div className="about-hero-mosaic"><img src={campusFacilitiesImage} alt="Waigani Christian College campus and Port Moresby skyline"/><div><strong>25+</strong><span>years shaping lives</span></div></div>
+        </section>}
+
+        {isCareers && <section className="page-hero">
+          <div className="page-hero-copy"><p className="eyebrow light">Work with purpose</p><h1>Build your career.<br /><em>Shape their future.</em></h1><p>Join a committed Christian learning community where your expertise, character and care can make a lasting difference.</p></div>
+          <div className="page-hero-image" style={{ backgroundImage: `url(${staffLearningImage})` }} role="img" aria-label="Waigani Christian College staff professional learning" />
+        </section>}
+
+        {isAbout && <>
+          <section className="belief-section section" id="vision"><div className="belief-number">01</div><div><p className="eyebrow">Our vision</p><h2>Educating for<br /><em>life and purpose.</em></h2></div><p>To be a leading Christian learning community that inspires every student to pursue excellence, live with integrity and contribute meaningfully to Papua New Guinea and the world.</p></section>
+          <section className="mission-section" id="mission"><div className="mission-image" style={{backgroundImage:`url(${libraryImage})`}} role="img" aria-label="Students studying in the Waigani Christian College library"/><div className="mission-copy"><p className="eyebrow light">Our mission</p><h2>Learning that transforms.</h2><p>We provide a safe, inclusive and ambitious education grounded in Christian values, strong relationships and excellent teaching.</p><div className="mission-pillars"><span><b>01</b>Know every learner</span><span><b>02</b>Pursue excellence</span><span><b>03</b>Serve with character</span></div></div></section>
+          <section className="about-pathways section"><div><p className="eyebrow">Explore our community</p><h2>Discover more about <em>Waigani.</em></h2></div><div className="about-pathway-grid"><a href="/administration-staff"><small>Our people</small><strong>Administration & staff</strong><span>Meet the team →</span></a><a href="/career-opportunities"><small>Join the team</small><strong>Career opportunities</strong><span>View vacancies →</span></a></div></section>
+        </>}
+
+        {isCareers && <section className="careers-section section">
+          <div className="careers-heading"><div><p className="eyebrow">Current opportunities</p><h2>Do meaningful work<br /><em>with remarkable people.</em></h2></div><p>Explore current vacancies and take the next step in your career at Waigani Christian College.</p></div>
+          {careers.length===0 ? <div className="careers-empty"><span>WCC</span><h3>No current vacancies</h3><p>There are no published opportunities right now. Please check back soon.</p></div> : <div className="career-list">{careers.map(role=><article key={role.id}><div className="career-meta"><span>{role.department||'College-wide'}</span><span>{role.employment_type}</span></div><h3>{role.title}</h3><p>{role.summary}</p><div className="career-footer"><span>⌖ {role.location}{role.closing_date&&<> · Closes {new Date(`${role.closing_date}T00:00:00`).toLocaleDateString()}</>}</span><a className="button navy" href={role.application_url||`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(role.application_email)}&su=${encodeURIComponent(`Application: ${role.title}`)}`} target="_blank" rel="noreferrer">Apply now <Arrow /></a></div></article>)}</div>}
+        </section>}
+
+        {(pageClass === 'home' || isSchool) && <section className="intro section" id="about">
           <div className="intro-heading">
             <p className="eyebrow">Our promise</p>
             <h2>Known by name.<br /><em>Ready for tomorrow.</em></h2>
@@ -179,9 +276,9 @@ function App() {
             <p>Our students learn in an inclusive community grounded in strong values, high expectations and genuine care.</p>
             <a href="#values" className="text-link">Meet our community <Arrow /></a>
           </div>
-        </section>
+        </section>}
 
-        <section className="program-section section" id="learning">
+        {(pageClass === 'home' || isLearning) && <section className="program-section section" id="learning">
           <div className="section-topline">
             <div><p className="eyebrow">Learning at Waigani Christian College</p><h2>A pathway for<br /><em>every stage.</em></h2></div>
             <p>From first discoveries to future pathways, learning is designed around the needs and potential of each student.</p>
@@ -198,9 +295,14 @@ function App() {
               </article>
             ))}
           </div>
-        </section>
+        </section>}
 
-        <section className="values-section" id="values">
+        {(isSchool || isLearning) && <section className="campus-gallery section" aria-labelledby="campus-gallery-title">
+          <div className="campus-gallery-heading"><div><p className="eyebrow">Inside Waigani</p><h2 id="campus-gallery-title">Places made for<br /><em>learning and belonging.</em></h2></div><p>From first discoveries to digital learning and safe transport, our campus supports every part of the student journey.</p></div>
+          <div className="campus-gallery-grid"><figure className="gallery-campus"><img src={campusFacilitiesImage} alt="Waigani Christian College campus"/><figcaption><span>Our campus</span><strong>A growing place to learn</strong></figcaption></figure><figure><img src={earlyChildrenImage} alt="Early learning students"/><figcaption><span>Early learning</span><strong>Strong beginnings</strong></figcaption></figure><figure><img src={computerLabImage} alt="Students in the computer laboratory"/><figcaption><span>Digital learning</span><strong>Skills for tomorrow</strong></figcaption></figure><figure><img src={libraryImage} alt="Students using the college library"/><figcaption><span>Library</span><strong>Space to explore</strong></figcaption></figure><figure className="gallery-transport"><img src={busFleetImage} alt="Waigani Christian College school bus fleet"/><figcaption><span>Student transport</span><strong>Connected to community</strong></figcaption></figure></div>
+        </section>}
+
+        {(pageClass === 'home' || isSchool) && <section className="values-section" id="values">
           <div className="values-visual photo-values" style={{ backgroundImage: `url(${learningImage})` }}>
             <div className="quote-card"><span>“</span><p>They don’t just teach us what to think. They teach us how to think.</p><small>— College student, Grade 10</small></div>
           </div>
@@ -214,18 +316,18 @@ function App() {
               <div><strong>03</strong><span><b>Community</b><small>Belong, contribute and serve.</small></span></div>
             </div>
           </div>
-        </section>
+        </section>}
 
-        <section className="life-section section" id="life">
+        {(pageClass === 'home' || isLife) && <section className="life-section section" id="life">
           <div className="life-title"><p className="eyebrow">Beyond the classroom</p><h2>More ways to<br /><em>find your place.</em></h2></div>
           <div className="life-grid">
             <div className="life-card sport photo-card" style={{ backgroundImage: `url(${campusImage})` }}><span>COMMUNITY</span><h3>Belong together</h3></div>
             <div className="life-card arts photo-card" style={{ backgroundImage: `url(${facilitiesImage})` }}><span>OUR CAMPUS</span><h3>A place to thrive</h3></div>
             <div className="life-card service photo-card" style={{ backgroundImage: `url(${transportImage})` }}><span>STUDENT CARE</span><h3>Connected to community</h3></div>
           </div>
-        </section>
+        </section>}
 
-        <section className="news-section section" id="news">
+        {(pageClass === 'home' || isNews) && <section className="news-section section" id="news">
           <div className="news-heading"><div><p className="eyebrow">What’s happening</p><h2>Life at <em>Waigani.</em></h2></div><a href="#news" className="text-link">View all news <Arrow /></a></div>
           <div className="news-list">
             {news.map(item => <article className="news-card" key={item.id||item.title}>
@@ -241,30 +343,38 @@ function App() {
               <button className="view-story" type="button" onClick={() => setSelectedNews(item)}>View more <Arrow /></button>
             </article>)}
           </div>
-        </section>
+        </section>}
+
+        {isStaff && <section className="staff-section section">
+          <div className="life-title"><p className="eyebrow">Administration & staff</p><h2>Meet our <em>team.</em></h2></div>
+          {staff.length === 0 ? <p className="staff-empty">Staff profiles will appear here when they are published by the administrator.</p> : <div className="staff-grid">{staff.map(person => <article className="staff-card" key={person.id}>
+            <div className="staff-photo">{person.photo_url ? <img src={person.photo_url} alt={person.name} /> : <span>{person.name.charAt(0)}</span>}</div>
+            <div className="staff-details"><p>{person.job_title}</p><h3>{person.name}</h3><div className="staff-contact-actions"><a className="staff-email-button" href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(person.email)}`} target="_blank" rel="noreferrer" aria-label={`Compose an email to ${person.name} at ${person.email}`}>✉ Email ↗</a>{person.linkedin_url && <a className="staff-linkedin-link" href={person.linkedin_url} target="_blank" rel="noreferrer">LinkedIn ↗</a>}</div></div>
+          </article>)}</div>}
+        </section>}
 
         <section className="cta-section" id="contact">
           <p className="eyebrow light">Your next chapter</p>
           <h2>Come and see what<br /><em>makes Waigani different.</em></h2>
           <p>The best way to know our school is to experience it. We would love to welcome your family.</p>
-          <div><button className="button gold" onClick={() => setFormOpen(true)}>Book a school tour <Arrow /></button><a href="tel:+67572714798" className="text-link light">Call our team</a></div>
+          <div><button className="button gold" onClick={() => setFormOpen(true)}>Book a school tour <Arrow /></button><a href="/administration-staff" className="button team-button">Call our team <Arrow /></a></div>
         </section>
       </main>
 
       <footer>
         <div className="footer-main">
           <div className="footer-brand">
-            <a className="brand" href="#home"><img className="brand-logo" src={schoolLogo} alt="Waigani Christian College crest" /><span><strong>Waigani Christian</strong><small>College · Papua New Guinea</small></span></a>
+            <a className="brand" href="/"><img className="brand-logo" src={schoolLogo} alt="Waigani Christian College crest" /><span><strong>Waigani Christian</strong><small>College · Papua New Guinea</small></span></a>
             <blockquote className="footer-scripture"><p>Train up a child in the way he should go, and when he is old, he shall not depart from it.</p><cite>Proverbs 22:6</cite></blockquote>
           </div>
-          <div className="footer-explore"><h4>Explore</h4><a href="#about">Our school</a><a href="#learning">Learning</a><a href="#life">Student life</a><a href="#news">News & events</a></div>
+          <div className="footer-explore"><h4>Explore</h4><a href="/about-us">About us</a><a href="/our-school">Our school</a><a href="/learning">Learning</a><a href="/student-life">Student life</a><a href="/career-opportunities">Careers</a><a href="/news-events">News & events</a></div>
           <div className="footer-visit"><h4>Find our campus</h4><div className="footer-map-frame"><iframe className="footer-map" title="Google Map showing Waigani Christian College" src="https://www.google.com/maps?q=Waigani+Christian+College,+Waigani+Heights,+Port+Moresby,+Papua+New+Guinea&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen></iframe></div><div className="footer-contact"><p>Waigani Heights<br />Port Moresby, Papua New Guinea</p><span><a className="map-link" href="https://www.google.com/maps/search/?api=1&query=Waigani+Christian+College+Waigani+Heights+Port+Moresby+Papua+New+Guinea" target="_blank" rel="noreferrer">Open in Google Maps ↗</a><a href="mailto:info@wcc.ac.pg">info@wcc.ac.pg</a><a href="tel:+67572714798">72714798</a></span></div></div>
         </div>
         <div className="footer-bottom"><span>© 2026 Waigani Christian College. All rights reserved.</span><span className="footer-utility">Privacy · Policies <a href="/admin">Admin login →</a></span></div>
       </footer>
 
       <nav className="mobile-quickbar" aria-label="Quick actions">
-        <a href="#home" aria-label="Back to homepage"><span aria-hidden="true">&#8962;</span>Home</a>
+        <a href="/" aria-label="Back to homepage"><span aria-hidden="true">&#8962;</span>Home</a>
         <a href="tel:+67572714798" aria-label="Call the college on 72714798"><span aria-hidden="true">&#9742;</span>Call</a>
         <button onClick={() => setFormOpen(true)}><span aria-hidden="true">&#9993;</span>Enquire</button>
       </nav>

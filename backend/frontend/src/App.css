@@ -294,3 +294,107 @@ button { cursor:pointer; }
 @media(prefers-reduced-motion:reduce){
   .hero-slide { transition:none; transform:none; }
 }
+
+/* Active state for dedicated page navigation. */
+.campus-gallery { background:#fff; }
+.campus-gallery-heading { display:grid; grid-template-columns:1.15fr .85fr; align-items:end; gap:50px; margin-bottom:42px; }
+.campus-gallery-heading h2 { margin:8px 0 0; font:clamp(42px,5vw,66px)/1 'Libre Caslon Display'; }
+.campus-gallery-heading h2 em { color:var(--red); font-weight:400; }
+.campus-gallery-heading>p { color:#5e676c; font-size:15px; line-height:1.8; }
+.campus-gallery-grid { display:grid; grid-template-columns:1.25fr 1fr 1fr; grid-template-rows:290px 290px; gap:16px; }
+.campus-gallery-grid figure { position:relative; min-width:0; margin:0; overflow:hidden; background:#111; }
+.campus-gallery-grid .gallery-campus { grid-row:1/3; }
+.campus-gallery-grid .gallery-transport { grid-column:2/4; }
+.campus-gallery-grid img { width:100%; height:100%; object-fit:cover; transition:transform .65s ease,filter .4s ease; }
+.campus-gallery-grid figure::after { content:''; position:absolute; inset:35% 0 0; background:linear-gradient(transparent,rgba(0,0,0,.82)); pointer-events:none; }
+.campus-gallery-grid figure:hover img { transform:scale(1.045); filter:saturate(1.08); }
+.campus-gallery-grid figcaption { position:absolute; z-index:1; left:22px; right:22px; bottom:20px; color:white; }
+.campus-gallery-grid figcaption span,.campus-gallery-grid figcaption strong { display:block; }
+.campus-gallery-grid figcaption span { color:var(--gold); font-size:9px; font-weight:850; letter-spacing:.14em; text-transform:uppercase; }
+.campus-gallery-grid figcaption strong { margin-top:6px; font:25px/1.1 'Libre Caslon Display'; }
+@media(max-width:850px){.campus-gallery-heading{grid-template-columns:1fr}.campus-gallery-grid{grid-template-columns:1fr 1fr;grid-template-rows:360px 250px 250px}.campus-gallery-grid .gallery-campus{grid-column:1/3;grid-row:auto}.campus-gallery-grid .gallery-transport{grid-column:1/3}}
+@media(max-width:520px){.campus-gallery-grid{display:grid;grid-template-columns:1fr;grid-template-rows:none}.campus-gallery-grid figure,.campus-gallery-grid .gallery-campus,.campus-gallery-grid .gallery-transport{grid-column:auto;height:260px}.campus-gallery-grid .gallery-campus{height:340px}}
+
+.nav a[aria-current="page"] { color:var(--red); }
+.nav a[aria-current="page"]::after { transform:scaleX(1); }
+
+/* About navigation and pages */
+.nav-dropdown { position:relative; display:flex; align-items:center; align-self:stretch; }
+.nav-dropdown>a { display:flex; align-items:center; gap:5px; }
+.nav-dropdown>a span { font-size:15px; transition:transform .2s ease; }
+.nav-dropdown-menu { position:absolute; z-index:80; left:-22px; top:calc(100% - 12px); width:245px; padding:10px; background:#0b0b0c; border-top:5px solid var(--gold); box-shadow:0 18px 35px rgba(0,0,0,.22); opacity:0; visibility:hidden; transform:translateY(10px); transition:opacity .2s ease,transform .2s ease,visibility .2s; }
+.nav-dropdown-menu a { display:block; padding:13px 14px; color:white; border-bottom:1px solid rgba(255,255,255,.12); text-decoration:none; font-size:11px; font-weight:750; text-transform:uppercase; }
+.nav-dropdown-menu a:last-child { border:0; }
+.nav-dropdown-menu a:hover,.nav-dropdown-menu a:focus-visible { background:var(--red); color:white; }
+.nav-dropdown:hover .nav-dropdown-menu,.nav-dropdown:focus-within .nav-dropdown-menu { opacity:1; visibility:visible; transform:none; }
+.nav-dropdown:hover>a span { transform:rotate(180deg); }
+
+.about-hero { min-height:650px; display:grid; grid-template-columns:55% 45%; background:#050505; color:white; overflow:hidden; border-bottom:12px solid var(--gold); }
+.about-hero-copy { position:relative; z-index:2; display:flex; flex-direction:column; justify-content:center; padding:90px clamp(30px,7vw,115px); }
+.about-hero-copy::after { content:''; position:absolute; right:-50px; bottom:60px; width:190px; height:15px; background:var(--red); transform:rotate(-12deg); }
+.about-hero h1 { margin:0; font:clamp(58px,7vw,98px)/.92 'Libre Caslon Display'; letter-spacing:-.045em; }
+.about-hero h1 em { color:var(--gold); font-weight:400; }
+.about-hero-copy>p:not(.eyebrow) { max-width:570px; margin:30px 0; color:#d4d8d9; font-size:17px; line-height:1.75; }
+.about-hero-actions { display:flex; align-items:center; gap:28px; }
+.about-hero-mosaic { position:relative; min-height:650px; border-left:10px solid var(--red); clip-path:polygon(14% 0,100% 0,100% 100%,0 100%); }
+.about-hero-mosaic img { width:100%; height:100%; object-fit:cover; filter:saturate(.85) contrast(1.05); }
+.about-hero-mosaic>div { position:absolute; left:8%; bottom:45px; padding:22px 28px; background:var(--blue); color:white; box-shadow:10px 10px 0 var(--gold); }
+.about-hero-mosaic strong,.about-hero-mosaic span { display:block; }.about-hero-mosaic strong { font:48px/1 'Libre Caslon Display'; }.about-hero-mosaic span { margin-top:4px; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.12em; }
+.belief-section { display:grid; grid-template-columns:100px .9fr 1fr; gap:45px; align-items:center; background:#f4f4f2; }
+.belief-number { color:var(--red); font:80px/1 'Libre Caslon Display'; opacity:.22; }
+.belief-section h2,.mission-copy h2,.about-pathways h2,.careers-heading h2 { margin:8px 0; font:clamp(42px,5vw,66px)/1 'Libre Caslon Display'; }.belief-section h2 em,.about-pathways h2 em,.careers-heading h2 em { color:var(--red); font-weight:400; }
+.belief-section>p { padding-left:35px; border-left:6px solid var(--gold); color:#50575b; font-size:18px; line-height:1.8; }
+.mission-section { display:grid; grid-template-columns:1fr 1fr; min-height:620px; background:#071f31; color:white; }
+.mission-image { background-size:cover; background-position:center; border-right:10px solid var(--red); clip-path:polygon(0 0,100% 0,90% 100%,0 100%); }
+.mission-copy { display:flex; flex-direction:column; justify-content:center; padding:70px clamp(35px,7vw,110px); }.mission-copy h2 { color:white; }.mission-copy>p:not(.eyebrow) { color:#c9d5dc; line-height:1.8; }
+.mission-pillars { display:grid; gap:12px; margin-top:30px; }.mission-pillars span { display:flex; align-items:center; gap:16px; padding:15px 0; border-top:1px solid rgba(255,255,255,.18); font-weight:750; }.mission-pillars b { color:var(--gold); font-size:12px; }
+.about-pathways { background:white; }.about-pathways>div:first-child { max-width:700px; }.about-pathway-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:40px; }.about-pathway-grid a { position:relative; min-height:190px; display:flex; flex-direction:column; justify-content:flex-end; padding:32px; background:#09090a; color:white; border-top:8px solid var(--red); text-decoration:none; overflow:hidden; transition:transform .25s ease,box-shadow .25s ease; }.about-pathway-grid a:nth-child(2) { background:var(--blue); border-color:var(--gold); }.about-pathway-grid a:hover { transform:translateY(-7px); box-shadow:0 18px 32px rgba(0,0,0,.18); }.about-pathway-grid small { color:var(--gold); font-weight:800; text-transform:uppercase; letter-spacing:.14em; }.about-pathway-grid strong { margin:12px 0 25px; font:33px 'Libre Caslon Display'; }.about-pathway-grid span { font-size:11px; font-weight:800; text-transform:uppercase; }
+.careers-section { background:#f4f4f2; }.careers-heading { display:grid; grid-template-columns:1.2fr .8fr; gap:50px; align-items:end; margin-bottom:45px; }.careers-heading>p { color:#5f686d; line-height:1.8; }.career-list { display:grid; gap:18px; }.career-list article { padding:32px 36px; background:white; border-left:8px solid var(--red); box-shadow:0 8px 25px rgba(0,0,0,.06); transition:transform .2s ease,box-shadow .2s ease; }.career-list article:nth-child(even) { border-color:var(--blue); }.career-list article:hover { transform:translateX(6px); box-shadow:0 14px 34px rgba(0,0,0,.1); }.career-meta { display:flex; gap:10px; }.career-meta span { padding:6px 9px; background:#eaf4fb; color:var(--blue); font-size:9px; font-weight:850; letter-spacing:.1em; text-transform:uppercase; }.career-list h3 { margin:15px 0 8px; font:34px 'Libre Caslon Display'; }.career-list>article>p { max-width:850px; color:#60676b; line-height:1.7; }.career-footer { display:flex; justify-content:space-between; align-items:center; gap:24px; margin-top:24px; padding-top:20px; border-top:1px solid #e3e4e5; }.career-footer>span { color:#596166; font-size:11px; }.career-footer .button { padding:13px 19px; }.careers-empty { padding:65px 25px; background:white; text-align:center; border-top:8px solid var(--gold); }.careers-empty>span { display:grid; width:72px; height:72px; margin:auto; place-items:center; background:#09090a; color:var(--gold); font-weight:900; }.careers-empty h3 { margin:22px 0 8px; font:34px 'Libre Caslon Display'; }.careers-empty p { color:#687074; }
+
+@media(max-width:850px){
+  .nav-dropdown{display:block;align-self:auto}.nav-dropdown>a{min-height:52px}.nav-dropdown-menu{position:static;width:auto;padding:0 0 8px 16px;background:#f5f5f5;border:0;box-shadow:none;opacity:1;visibility:visible;transform:none}.nav-dropdown-menu a{min-height:auto!important;padding:11px 12px!important;color:#333!important;border-color:#ddd!important;font-size:10px!important}.nav-dropdown-menu a:hover{background:#eee!important;color:var(--red)!important}
+  .about-hero{grid-template-columns:1fr}.about-hero-copy{padding:70px 24px}.about-hero-mosaic{min-height:420px;border-left:0;border-top:9px solid var(--red);clip-path:none}.belief-section{grid-template-columns:70px 1fr}.belief-section>p{grid-column:1/-1}.mission-section{grid-template-columns:1fr}.mission-image{min-height:420px;border-right:0;border-bottom:9px solid var(--red);clip-path:none}.careers-heading{grid-template-columns:1fr}.career-footer{align-items:flex-start;flex-direction:column}
+}
+@media(max-width:520px){.about-hero h1{font-size:clamp(45px,13vw,58px)}.about-hero-actions{align-items:flex-start;flex-direction:column}.belief-section{grid-template-columns:1fr;gap:18px}.belief-number{font-size:55px}.belief-section>p{padding-left:20px}.mission-copy{padding:65px 22px}.about-pathway-grid{grid-template-columns:1fr}.career-list article{padding:25px 22px}.career-meta{flex-wrap:wrap}.career-footer .button{width:100%;justify-content:center}.about-hero-mosaic>div{left:20px}}
+
+/* Scripture displayed beneath the school name in the header. */
+.header .brand>span { display:flex; min-width:0; flex-direction:column; align-items:stretch; }
+.header .brand small { width:100%; }
+.header-scripture { display:block; width:100%; max-width:290px; margin-top:4px; color:#111; font:italic 6.5px/1.25 'DM Sans',sans-serif; letter-spacing:0; text-align:justify; text-align-last:left; text-transform:none; }
+.header-scripture>span,.header-scripture>b { display:block; }
+.header-scripture b { font-style:normal; font-weight:900; white-space:nowrap; }
+@media(max-width:1100px){.header-scripture{max-width:220px;font-size:6px}}
+@media(max-width:520px){.header-scripture{display:block;max-width:185px;margin-top:3px;font-size:5.25px;line-height:1.2}.header .brand>span{max-width:190px}}
+@media(max-width:370px){.header-scripture{max-width:155px;font-size:4.75px}.header .brand>span{max-width:160px}}
+
+/* Individual static headers for pages that do not use the home carousel. */
+.page-hero { min-height:560px; display:grid; grid-template-columns:47% 53%; background:#050505; color:white; border-bottom:10px solid var(--red); }
+.page-hero-copy { display:flex; flex-direction:column; justify-content:center; padding:80px clamp(24px,5vw,80px) 80px clamp(24px,8vw,120px); }
+.page-hero h1 { margin:0; font:clamp(52px,6vw,86px)/.98 'Libre Caslon Display'; letter-spacing:-.035em; font-weight:400; }
+.page-hero h1 em { color:var(--red); font-weight:400; }
+.page-hero-copy>p:last-child { max-width:500px; margin:30px 0 0; color:#d2ddda; font-size:16px; line-height:1.75; }
+.page-hero-image { min-height:560px; background-size:cover; background-position:center; border-left:10px solid var(--red); clip-path:polygon(8% 0,100% 0,100% 100%,0 100%); }
+@media(max-width:850px){
+  .page-hero{grid-template-columns:1fr}.page-hero-copy{padding:64px 24px}.page-hero-image{min-height:420px;border-left:0;border-top:9px solid var(--red);clip-path:none}
+}
+@media(max-width:520px){.page-hero h1{font-size:clamp(41px,12vw,52px)}.page-hero-image{min-height:340px}}
+
+.team-button { background:var(--blue); color:white; text-decoration:none; }
+.staff-section { background:#f4f4f2; }
+.staff-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:28px; }
+.staff-card { background:white; border-top:8px solid var(--red); box-shadow:0 14px 34px rgba(0,0,0,.09); }
+.staff-card:nth-child(3n+2) { border-color:var(--blue); }
+.staff-card:nth-child(3n) { border-color:var(--gold); }
+.staff-photo { aspect-ratio:4/4.5; overflow:hidden; background:#111; display:grid; place-items:center; }
+.staff-photo img { width:100%; height:100%; object-fit:cover; }
+.staff-photo span { color:white; font:90px 'Libre Caslon Display'; }
+.staff-details { padding:25px; }
+.staff-details>p { margin:0; color:var(--blue); font-size:10px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+.staff-details h3 { margin:9px 0 22px; font:30px 'Libre Caslon Display'; }
+.staff-contact-actions { display:flex; align-items:center; flex-wrap:wrap; gap:12px; }
+.staff-details .staff-email-button { display:inline-flex; align-items:center; justify-content:center; min-height:42px; box-sizing:border-box; padding:0 18px; background:var(--red); color:white; border:2px solid var(--red); text-decoration:none; font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; transition:background .2s ease,color .2s ease,transform .2s ease; }
+.staff-details .staff-email-button:hover,.staff-details .staff-email-button:focus-visible { background:white; color:var(--red); transform:translateY(-2px); }
+.staff-details .staff-linkedin-link { display:inline-flex; align-items:center; min-height:42px; color:#111; font-size:11px; font-weight:800; text-transform:uppercase; }
+.staff-empty { max-width:650px; margin:auto; text-align:center; color:#697074; }
+@media(max-width:850px){.staff-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.staff-grid{grid-template-columns:1fr}.team-button{justify-content:center;width:100%;box-sizing:border-box}}
