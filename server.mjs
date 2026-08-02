@@ -11,9 +11,12 @@ config({ path: 'backend/.env.local' })
 
 const app = new Hono()
 const port = Number(process.env.PORT || 3000)
-const adminUsername = process.env.WCC_ADMIN_USERNAME || 'admin'
-const adminPassword = process.env.WCC_ADMIN_PASSWORD || 'ChangeMe123!'
-const signingSecret = process.env.WCC_SECRET_KEY || 'development-secret-change-before-production'
+const adminUsername = process.env.WCC_ADMIN_USERNAME
+const adminPassword = process.env.WCC_ADMIN_PASSWORD
+const signingSecret = process.env.WCC_SECRET_KEY
+if (!adminUsername || !adminPassword || !signingSecret) {
+  throw new Error('WCC_ADMIN_USERNAME, WCC_ADMIN_PASSWORD, and WCC_SECRET_KEY are required')
+}
 const tokenTtl = 8 * 60 * 60
 const mediaBucket = 'post-media'
 let database
