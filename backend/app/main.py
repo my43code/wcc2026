@@ -299,6 +299,13 @@ def update_enquiry(enquiry_id: int, change: EnquiryStatus, database: Client = De
     return {"id": enquiry_id, "status": change.status}
 
 
+@app.delete("/api/enquiries/{enquiry_id}", status_code=204)
+def delete_enquiry(enquiry_id: int, database: Client = Depends(require_admin_database)):
+    result = database.table("enquiries").delete().eq("id", enquiry_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Enquiry not found")
+
+
 @app.get("/api/staff")
 def list_staff(admin: bool = False, authorization: str | None = Header(default=None)):
     if admin:
