@@ -376,8 +376,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 
 Deno.serve(async (req: Request) => {
   const supabaseClient = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    Deno.env.get('https://qemfloodlswcorxwqrzw.supabase.co') ?? '',
+    Deno.env.get('sb_publishable_Xmm8LIgsyMdb955wNXr2Nw_niGPjvUN') ?? '',
     {
       global: { headers: { Authorization: req.headers.get('Authorization')! } },
     },
