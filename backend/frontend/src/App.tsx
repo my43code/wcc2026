@@ -216,7 +216,7 @@ function App() {
   return (
     <div className={`site-shell page-${pageClass}`}>
       <div className="announcement">
-        <p>Enrolments for 2027 are now open</p>
+        <p>Enrollment Still Open</p>
         <button onClick={() => setFormOpen(true)}>Begin your journey <Arrow /></button>
       </div>
 
