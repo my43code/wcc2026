@@ -9,4 +9,5 @@ backend/wcc.db
 **/__pycache__/
 *.py[cod]
 backend/frontend/node_modules/
+/node_modules/
 backend/frontend/dist/

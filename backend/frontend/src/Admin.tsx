@@ -28,7 +28,11 @@ async function api(path:string, options:RequestInit = {}) {
   if (token) headers.set('Authorization',`Bearer ${token}`)
   let response:Response
   try { response = await fetch(path, { ...options, headers }) }
-  catch { throw new Error('The backend is offline. Start FastAPI on port 8000 and try again.') }
+  catch { throw new Error('The admin service is offline. Please try again shortly.') }
+  const isJson = response.headers.get('content-type')?.includes('application/json')
+  if (!isJson && response.status !== 204) {
+    throw new Error('The admin API is not deployed on this website yet.')
+  }
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
     throw new Error(error.detail || `Request failed (${response.status})`)
