@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
+import { supabase } from './supabase'
 import campusImage from './assets/471375683_122111557094676720_8636929484856250894_n.jpg'
 import facilitiesImage from './assets/IMG_0354.jpg'
 import transportImage from './assets/IMG_0493.jpg'
@@ -110,16 +111,29 @@ function App() {
 
   useEffect(() => {
     if (!isStaff) return
-    fetch('/api/staff').then(response => response.ok ? response.json() : Promise.reject()).then(setStaff).catch(() => setStaff([]))
+    const loadStaff = async () => {
+      const { data, error } = await supabase.from('staff_profiles').select('*').eq('published', true).order('sort_order').order('name')
+      if (error) throw error
+      setStaff(data || [])
+    }
+    loadStaff().catch(() => setStaff([]))
   }, [isStaff])
 
   useEffect(() => {
     if (!isCareers) return
-    fetch('/api/careers').then(response => response.ok ? response.json() : Promise.reject()).then(setCareers).catch(() => setCareers([]))
+    const loadCareers = async () => {
+      const { data, error } = await supabase.from('career_opportunities').select('*').eq('published', true).order('closing_date', { ascending:true, nullsFirst:false }).order('created_at', { ascending:false })
+      if (error) throw error
+      setCareers(data || [])
+    }
+    loadCareers().catch(() => setCareers([]))
   }, [isCareers])
 
   useEffect(() => {
-    fetch('/api/posts').then(response => response.ok ? response.json() : Promise.reject()).then((posts: Array<{id:number;title:string;summary:string;body:string;category:string;event_date:string|null;media_url:string|null;media_type:'image'|'video'|null}>) => {
+    const loadPosts = async () => {
+      const { data, error } = await supabase.from('posts').select('*').eq('published', true).order('promoted', { ascending:false }).order('created_at', { ascending:false })
+      if (error) throw error
+      const posts = (data || []) as Array<{id:number;title:string;summary:string;body:string;category:string;event_date:string|null;media_url:string|null;media_type:'image'|'video'|null}>
       const labels:Record<string,string> = {news_events:'News',early_learning:'Early learning',primary_school:'Primary',secondary_school:'Secondary',student_life:'Student life'}
       const months=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
       const mappedNews:NewsItem[] = posts.slice(0,6).map(post => { const date=post.event_date?new Date(`${post.event_date}T00:00:00`):new Date(); return {id:post.id,date:`${String(date.getDate()).padStart(2,'0')} ${months[date.getMonth()]}`,tag:labels[post.category]||'College',title:post.title,text:post.summary,body:post.body,media_url:post.media_url,media_type:post.media_type} })
@@ -129,7 +143,8 @@ function App() {
         const sharedStory = mappedNews.find(item => String(item.id) === sharedStoryId)
         if (sharedStory) setSelectedNews(sharedStory)
       }
-    }).catch(() => undefined)
+    }
+    loadPosts().catch(() => undefined)
   }, [])
 
   useEffect(() => {
@@ -145,11 +160,8 @@ function App() {
     setSubmitting(true)
     const data = new FormData(form)
     try {
-      const response = await fetch('/api/enquiries', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ name:data.get('name'), email:data.get('email'), year_level:data.get('year_level'), message:data.get('message') }) })
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}))
-        throw new Error(error.detail || 'We could not send your enquiry. Please try again.')
-      }
+      const { error } = await supabase.from('enquiries').insert({ name:data.get('name'), email:data.get('email'), year_level:data.get('year_level'), message:data.get('message') || '', status:'new' })
+      if (error) throw error
       setSent(true)
       form.reset()
     } catch(error) {
@@ -166,8 +178,9 @@ function App() {
     setSearching(true)
     try {
       const websiteResults = searchWebsiteSections(query)
-      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
-      const postResults:Array<Omit<SearchResult,'href'>> = response.ok ? await response.json() : []
+      const { data, error } = await supabase.rpc('search_published_posts', { search_term:query })
+      if (error) throw error
+      const postResults:Array<Omit<SearchResult,'href'>> = data || []
       setSearchResults([...postResults.map(result=>({...result,href:'/news-events'})),...websiteResults])
     } finally { setSearching(false) }
   }
