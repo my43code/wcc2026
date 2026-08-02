@@ -5,11 +5,21 @@ create or replace function public.is_wcc_admin()
 returns boolean
 language sql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select coalesce((select auth.jwt() ->> 'email') = 'wccadmin@wcc.ac.pg', false);
+  select exists (
+    select 1
+    from auth.users
+    where id = (select auth.uid())
+      and (
+        invited_at is not null
+        or lower(email) = 'wccadmin@wcc.ac.pg'
+      )
+  );
 $$;
+
+revoke all on function public.is_wcc_admin() from public;
 
 grant execute on function public.is_wcc_admin() to authenticated;
 

@@ -1,7 +1,5 @@
 import { supabase } from './supabase'
 
-const adminEmail = 'wccadmin@wcc.ac.pg'
-
 function parseBody(options:RequestInit) {
   return typeof options.body === 'string' ? JSON.parse(options.body) : options.body
 }
@@ -13,7 +11,7 @@ function check<T>({ data, error }:{ data:T; error:{ message:string }|null }):T {
 
 async function requireAdmin() {
   const { data, error } = await supabase.auth.getUser()
-  if (error || data.user?.email?.toLowerCase() !== adminEmail) {
+  if (error || !data.user) {
     await supabase.auth.signOut()
     throw new Error('Admin sign-in required')
   }
@@ -26,11 +24,10 @@ export async function adminApi(path:string, options:RequestInit = {}) {
 
   if (path === '/api/auth/login' && method === 'POST') {
     const credentials = parseBody(options) as { username:string; password:string }
-    const email = credentials.username.includes('@') ? credentials.username : adminEmail
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password:credentials.password })
-    if (error || data.user?.email?.toLowerCase() !== adminEmail) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email:credentials.username.trim(), password:credentials.password })
+    if (error || !data.user) {
       await supabase.auth.signOut()
-      throw new Error(error?.message || 'Incorrect username or password')
+      throw new Error(error?.message || 'Incorrect email or password')
     }
     return { access_token:data.session.access_token, token_type:'bearer', expires_in:data.session.expires_in }
   }

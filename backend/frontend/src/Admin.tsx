@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import schoolLogo from './assets/WCC LOGO.png'
 import './Admin.css'
 import { adminApi as api, adminSignOut } from './adminApi'
-import { supabase } from './supabase'
+import { completeAuthRedirect, supabase } from './supabase'
 
 type Category = 'news_events' | 'early_learning' | 'primary_school' | 'secondary_school' | 'student_life'
 type MediaFields = { media_url:string|null; media_type:'image'|'video'|null; media_path:string|null }
@@ -53,9 +53,9 @@ export default function Admin() {
 
   useEffect(() => {
     if (setupMode) {
-      supabase.auth.getSession().then(({data}) => {
-        if (!data.session) setNotice('This invitation link is invalid or has expired. Ask the administrator to resend it.')
-      }).finally(() => setLoading(false))
+      completeAuthRedirect().then(session => {
+        if (!session) setNotice('This invitation link is invalid or has expired. Ask the administrator to resend it.')
+      }).catch(error => setNotice(error instanceof Error ? error.message : 'Unable to open this invitation.')).finally(() => setLoading(false))
       return
     }
     api('/api/admin/me').then(() => {
@@ -162,7 +162,7 @@ export default function Admin() {
 
   if (loading) return <div className="admin-loading">Loading admin portal…</div>
   if (setupMode) return <main className="admin-login"><form onSubmit={setPassword}><img src={schoolLogo} alt="Waigani Christian College crest"/><p>Secure administration</p><h1>Set your password.</h1><label>New password<input name="password" type="password" minLength={8} required autoFocus /></label><label>Confirm password<input name="confirmation" type="password" minLength={8} required /></label>{notice&&<div className="admin-error">{notice}</div>}<button disabled={saving}>{saving?'Saving…':'Set password →'}</button><a href="/admin">Return to sign in</a></form></main>
-  if (!authenticated) return <main className="admin-login"><form onSubmit={login}><img src={schoolLogo} alt="Waigani Christian College crest"/><p>Secure administration</p><h1>Welcome back.</h1><label>Username<input name="username" required autoFocus /></label><label>Password<input name="password" type="password" required /></label>{notice&&<div className="admin-error">{notice}</div>}<button>Sign in →</button><a href="/">← Return to website</a></form></main>
+  if (!authenticated) return <main className="admin-login"><form onSubmit={login}><img src={schoolLogo} alt="Waigani Christian College crest"/><p>Secure administration</p><h1>Welcome back.</h1><label>Email address<input name="username" type="email" autoComplete="email" required autoFocus /></label><label>Password<input name="password" type="password" autoComplete="current-password" required /></label>{notice&&<div className="admin-error">{notice}</div>}<button>Sign in →</button><a href="/">← Return to website</a></form></main>
 
   return <div className="admin-shell">
     <aside className="admin-sidebar"><a className="admin-brand" href="/"><img src={schoolLogo} alt="College crest"/><span>Waigani Christian</span></a><nav><button className={section==='overview'?'active':''} onClick={()=>setSection('overview')}>⌂ Overview</button><button className={section==='posts'?'active':''} onClick={()=>setSection('posts')}>✦ Content & posts</button><button className={section==='staff'?'active':''} onClick={()=>setSection('staff')}>♟ Staff profiles</button><button className={section==='careers'?'active':''} onClick={()=>setSection('careers')}>▣ Careers <b>{counts.openCareers}</b></button><button className={section==='enquiries'?'active':''} onClick={()=>setSection('enquiries')}>✉ Enquiries <b>{counts.newEnquiries}</b></button></nav><div className="admin-sidebar-bottom"><a href="/">View public website ↗</a><button onClick={()=>{void adminSignOut().finally(()=>location.reload())}}>Sign out</button></div></aside>
