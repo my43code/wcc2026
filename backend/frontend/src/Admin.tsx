@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import schoolLogo from './assets/WCC LOGO.png'
 import './Admin.css'
 import { adminApi as api, adminSignOut } from './adminApi'
+import { supabase } from './supabase'
 
 type Category = 'news_events' | 'early_learning' | 'primary_school' | 'secondary_school' | 'student_life'
 type MediaFields = { media_url:string|null; media_type:'image'|'video'|null; media_path:string|null }
@@ -23,6 +24,7 @@ const blankStaff:StaffEditor = { name:'', job_title:'', email:'', linkedin_url:'
 const blankCareer:CareerEditor = { title:'', department:'', location:'Waigani Heights, Port Moresby', employment_type:'Full-time', summary:'', description:'', application_email:'info@wcc.ac.pg', application_url:null, closing_date:'', published:true }
 
 export default function Admin() {
+  const setupMode = window.location.pathname === '/admin/setup'
   const [authenticated,setAuthenticated] = useState(false)
   const [loading,setLoading] = useState(true)
   const [section,setSection] = useState<'overview'|'posts'|'enquiries'|'staff'|'careers'>('overview')
@@ -50,11 +52,33 @@ export default function Admin() {
   },[])
 
   useEffect(() => {
+    if (setupMode) {
+      supabase.auth.getSession().then(({data}) => {
+        if (!data.session) setNotice('This invitation link is invalid or has expired. Ask the administrator to resend it.')
+      }).finally(() => setLoading(false))
+      return
+    }
     api('/api/admin/me').then(() => {
       setAuthenticated(true)
       return loadData().catch(error => setNotice(error instanceof Error ? error.message : 'Database unavailable'))
     }).catch(() => undefined).finally(() => setLoading(false))
-  },[loadData])
+  },[loadData,setupMode])
+
+  async function setPassword(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setNotice(''); setSaving(true)
+    const data = new FormData(event.currentTarget)
+    const password = String(data.get('password') || '')
+    const confirmation = String(data.get('confirmation') || '')
+    if (password !== confirmation) { setNotice('Passwords do not match.'); setSaving(false); return }
+    try {
+      const { error } = await supabase.auth.updateUser({ password })
+      if (error) throw error
+      window.history.replaceState({}, '', '/admin')
+      setAuthenticated(true)
+      await loadData()
+    } catch(error) { setNotice(error instanceof Error ? error.message : 'Unable to set password') }
+    finally { setSaving(false) }
+  }
 
   async function login(event:FormEvent<HTMLFormElement>) {
     event.preventDefault(); setNotice('')
@@ -137,6 +161,7 @@ export default function Admin() {
   const counts = useMemo(() => ({published:posts.filter(p=>p.published).length,promoted:posts.filter(p=>p.promoted).length,newEnquiries:enquiries.filter(e=>e.status==='new').length,openCareers:careers.filter(c=>c.published).length}),[posts,enquiries,careers])
 
   if (loading) return <div className="admin-loading">Loading admin portal…</div>
+  if (setupMode) return <main className="admin-login"><form onSubmit={setPassword}><img src={schoolLogo} alt="Waigani Christian College crest"/><p>Secure administration</p><h1>Set your password.</h1><label>New password<input name="password" type="password" minLength={8} required autoFocus /></label><label>Confirm password<input name="confirmation" type="password" minLength={8} required /></label>{notice&&<div className="admin-error">{notice}</div>}<button disabled={saving}>{saving?'Saving…':'Set password →'}</button><a href="/admin">Return to sign in</a></form></main>
   if (!authenticated) return <main className="admin-login"><form onSubmit={login}><img src={schoolLogo} alt="Waigani Christian College crest"/><p>Secure administration</p><h1>Welcome back.</h1><label>Username<input name="username" required autoFocus /></label><label>Password<input name="password" type="password" required /></label>{notice&&<div className="admin-error">{notice}</div>}<button>Sign in →</button><a href="/">← Return to website</a></form></main>
 
   return <div className="admin-shell">
