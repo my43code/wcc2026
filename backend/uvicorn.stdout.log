@@ -80,3 +80,5 @@ INFO:     127.0.0.1:53707 - "GET /api/posts HTTP/1.1" 200 OK
 INFO:     127.0.0.1:53710 - "GET /api/posts HTTP/1.1" 200 OK
 INFO:     127.0.0.1:53752 - "GET /api/posts HTTP/1.1" 200 OK
 INFO:     127.0.0.1:53754 - "GET /api/posts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58701 - "GET /api/posts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58703 - "GET /api/posts HTTP/1.1" 200 OK
