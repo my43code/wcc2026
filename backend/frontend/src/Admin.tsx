@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import schoolLogo from './assets/WCC LOGO.png'
 import './Admin.css'
+import { adminApi as api, adminSignOut } from './adminApi'
 
 type Category = 'news_events' | 'early_learning' | 'primary_school' | 'secondary_school' | 'student_life'
 type MediaFields = { media_url:string|null; media_type:'image'|'video'|null; media_path:string|null }
@@ -20,25 +21,6 @@ const categories: Record<Category,string> = {
 const blankPost:PostEditor = { title:'', summary:'', body:'', category:'news_events', event_date:'', published:true, promoted:false, media_url:null, media_type:null, media_path:null }
 const blankStaff:StaffEditor = { name:'', job_title:'', email:'', linkedin_url:'', photo_url:null, photo_path:null, sort_order:0, published:true }
 const blankCareer:CareerEditor = { title:'', department:'', location:'Waigani Heights, Port Moresby', employment_type:'Full-time', summary:'', description:'', application_email:'info@wcc.ac.pg', application_url:null, closing_date:'', published:true }
-
-async function api(path:string, options:RequestInit = {}) {
-  const token = sessionStorage.getItem('wcc_admin_token')
-  const headers = new Headers(options.headers)
-  if (!(options.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type','application/json')
-  if (token) headers.set('Authorization',`Bearer ${token}`)
-  let response:Response
-  try { response = await fetch(path, { ...options, headers }) }
-  catch { throw new Error('The admin service is offline. Please try again shortly.') }
-  const isJson = response.headers.get('content-type')?.includes('application/json')
-  if (!isJson && response.status !== 204) {
-    throw new Error('The admin API is not deployed on this website yet.')
-  }
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(error.detail || `Request failed (${response.status})`)
-  }
-  return response.status === 204 ? null : response.json()
-}
 
 export default function Admin() {
   const [authenticated,setAuthenticated] = useState(false)
@@ -71,7 +53,7 @@ export default function Admin() {
     api('/api/admin/me').then(() => {
       setAuthenticated(true)
       return loadData().catch(error => setNotice(error instanceof Error ? error.message : 'Database unavailable'))
-    }).catch(() => sessionStorage.removeItem('wcc_admin_token')).finally(() => setLoading(false))
+    }).catch(() => undefined).finally(() => setLoading(false))
   },[loadData])
 
   async function login(event:FormEvent<HTMLFormElement>) {
@@ -79,7 +61,7 @@ export default function Admin() {
     const data = new FormData(event.currentTarget)
     try {
       const result = await api('/api/auth/login',{method:'POST',body:JSON.stringify({username:data.get('username'),password:data.get('password')})})
-      sessionStorage.setItem('wcc_admin_token',result.access_token); setAuthenticated(true)
+      void result; setAuthenticated(true)
       try { await loadData() } catch(error) { setNotice(error instanceof Error ? `Signed in. ${error.message}` : 'Signed in, but the database is unavailable.') }
     } catch(error) { setNotice(error instanceof Error ? error.message : 'Unable to sign in') }
   }
@@ -158,7 +140,7 @@ export default function Admin() {
   if (!authenticated) return <main className="admin-login"><form onSubmit={login}><img src={schoolLogo} alt="Waigani Christian College crest"/><p>Secure administration</p><h1>Welcome back.</h1><label>Username<input name="username" required autoFocus /></label><label>Password<input name="password" type="password" required /></label>{notice&&<div className="admin-error">{notice}</div>}<button>Sign in →</button><a href="/">← Return to website</a></form></main>
 
   return <div className="admin-shell">
-    <aside className="admin-sidebar"><a className="admin-brand" href="/"><img src={schoolLogo} alt="College crest"/><span>Waigani Christian</span></a><nav><button className={section==='overview'?'active':''} onClick={()=>setSection('overview')}>⌂ Overview</button><button className={section==='posts'?'active':''} onClick={()=>setSection('posts')}>✦ Content & posts</button><button className={section==='staff'?'active':''} onClick={()=>setSection('staff')}>♟ Staff profiles</button><button className={section==='careers'?'active':''} onClick={()=>setSection('careers')}>▣ Careers <b>{counts.openCareers}</b></button><button className={section==='enquiries'?'active':''} onClick={()=>setSection('enquiries')}>✉ Enquiries <b>{counts.newEnquiries}</b></button></nav><div className="admin-sidebar-bottom"><a href="/">View public website ↗</a><button onClick={()=>{sessionStorage.removeItem('wcc_admin_token');location.reload()}}>Sign out</button></div></aside>
+    <aside className="admin-sidebar"><a className="admin-brand" href="/"><img src={schoolLogo} alt="College crest"/><span>Waigani Christian</span></a><nav><button className={section==='overview'?'active':''} onClick={()=>setSection('overview')}>⌂ Overview</button><button className={section==='posts'?'active':''} onClick={()=>setSection('posts')}>✦ Content & posts</button><button className={section==='staff'?'active':''} onClick={()=>setSection('staff')}>♟ Staff profiles</button><button className={section==='careers'?'active':''} onClick={()=>setSection('careers')}>▣ Careers <b>{counts.openCareers}</b></button><button className={section==='enquiries'?'active':''} onClick={()=>setSection('enquiries')}>✉ Enquiries <b>{counts.newEnquiries}</b></button></nav><div className="admin-sidebar-bottom"><a href="/">View public website ↗</a><button onClick={()=>{void adminSignOut().finally(()=>location.reload())}}>Sign out</button></div></aside>
     <main className="admin-main"><header><div><p>Admin dashboard</p><h1>{section==='overview'?'Good day, Administrator.':section==='posts'?'Manage content':section==='staff'?'Manage staff':section==='careers'?'Manage careers':'Enquiry inbox'}</h1></div><button className="admin-new" onClick={()=>{if(section==='staff'){startNewStaff()}else if(section==='careers'){startNewCareer()}else{setEditor(blankPost);setMediaFile(null);setEditingId(null);setSection('posts')}}}>{section==='staff'?'+ New profile':section==='careers'?'+ New vacancy':'+ New post'}</button></header>{notice&&<div className="admin-notice">{notice}</div>}
       {section==='overview'&&<><section className="metric-grid"><article><span>Published content</span><strong>{counts.published}</strong><small>Across all school areas</small></article><article><span>Promoted stories</span><strong>{counts.promoted}</strong><small>Boosted on the website</small></article><article className="career-metric"><span>Career opportunities</span><strong>{counts.openCareers}</strong><small>Published vacancies</small><button onClick={startNewCareer}>Post a vacancy →</button></article><article className="urgent"><span>New enquiries</span><strong>{counts.newEnquiries}</strong><small>Awaiting a response</small></article></section><section className="admin-panel"><div className="panel-heading"><div><p>Recent activity</p><h2>Latest posts</h2></div><button onClick={()=>setSection('posts')}>Manage all →</button></div><PostTable posts={posts.slice(0,5)} edit={edit} remove={remove}/></section></>}
       {section==='posts'&&<div className="content-layout"><form className="post-editor admin-panel" onSubmit={savePost}><div className="panel-heading"><div><p>Publisher</p><h2>{editingId?'Edit post':'Create a new post'}</h2></div>{editingId&&<button type="button" onClick={()=>{setEditor(blankPost);setMediaFile(null);setEditingId(null)}}>Cancel</button>}</div><label>Title<input value={editor.title} onChange={e=>setEditor({...editor,title:e.target.value})} required /></label><label>School area<select value={editor.category} onChange={e=>setEditor({...editor,category:e.target.value as Category})}>{Object.entries(categories).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label>Short summary<textarea rows={3} value={editor.summary} onChange={e=>setEditor({...editor,summary:e.target.value})} required /></label><label>Full story<textarea rows={7} value={editor.body} onChange={e=>setEditor({...editor,body:e.target.value})} /></label><label>Event date <span>Optional</span><input type="date" value={editor.event_date} onChange={e=>setEditor({...editor,event_date:e.target.value})}/></label><label>Image or video <span>Optional · images 10 MB, videos 50 MB</span><input key={`${editingId||'new'}-${editor.media_path||'empty'}`} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" onChange={e=>setMediaFile(e.target.files?.[0]||null)}/></label>{mediaFile&&<div className="media-selection"><strong>Ready to upload:</strong> {mediaFile.name}</div>}{editor.media_url&&<div className="media-preview">{editor.media_type==='video'?<video src={editor.media_url} controls preload="metadata"/>:<img src={editor.media_url} alt="Current post media"/>}<button type="button" onClick={()=>{setEditor({...editor,media_url:null,media_type:null,media_path:null});setMediaFile(null)}}>Remove media</button></div>}<div className="check-row"><label><input type="checkbox" checked={editor.published} onChange={e=>setEditor({...editor,published:e.target.checked})}/> Publish now</label><label><input type="checkbox" checked={editor.promoted} onChange={e=>setEditor({...editor,promoted:e.target.checked})}/> Boost this post</label></div><button className="save-post" disabled={saving}>{saving?'Uploading & saving…':editingId?'Save changes →':'Publish post →'}</button></form><section className="admin-panel post-library"><div className="panel-heading"><div><p>Content library</p><h2>All posts</h2></div></div><select className="filter" value={filter} onChange={e=>setFilter(e.target.value as typeof filter)}><option value="all">All school areas</option>{Object.entries(categories).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select><PostTable posts={visiblePosts} edit={edit} remove={remove}/></section></div>}
