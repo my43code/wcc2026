@@ -92,10 +92,9 @@ export default function Admin() {
     try {
       const { error } = await supabase.auth.updateUser({ password })
       if (error) throw error
+      await api('/api/admin/me')
       window.history.replaceState({}, '', '/admin')
       setSetupMode(false)
-      setAuthenticated(true)
-      await loadData()
     } catch(error) { setNotice(error instanceof Error ? error.message : 'Unable to set password') }
     finally { setSaving(false) }
   }
