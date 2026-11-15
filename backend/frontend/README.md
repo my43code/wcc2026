@@ -52,6 +52,15 @@ to that page. Draft pages are visible only to administrators in the dashboard.
 Administrators are invited from the Supabase dashboard. See
 [`DATABASE.md`](../DATABASE.md).
 
+## News and updates
+
+The homepage shows published posts in a swipeable carousel with pathway
+filters, previous/next controls and a pause button. Opening a card displays
+the full story; sharing remains a separate action. Motion pauses during
+interaction and respects reduced-motion preferences. The news page lists all
+published posts. Posts assigned to an upgrading subpage show its title in the
+category label.
+
 ## Code map
 
 - `src/main.tsx`: shows the admin dashboard for `/admin` paths and the public

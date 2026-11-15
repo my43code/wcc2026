@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 import { supabase } from './supabase'
 import LearningPageView from './LearningPage'
-import type { LearningStory } from './LearningPage'
+import NewsCarousel, { NewsCard } from './NewsCarousel'
+import type { NewsItem } from './news'
 import type { LearningPage } from './learning'
 import { learningPageHref } from './learning'
 import campusImage from './assets/471375683_122111557094676720_8636929484856250894_n.jpg'
@@ -26,16 +27,9 @@ const programs = [
   { icon:'↗', title:'FODE', slug:'fode', ages:'Grade 10 and 12 upgrading', text:'Explore Grade 10 and Grade 12 upgrading and take the next step in your learning journey.' },
 ]
 
-type NewsItem = LearningStory
 type SearchResult = { id:number|string; title:string; summary:string; category:string; event_date:string|null; promoted:boolean; href:string }
 type StaffProfile = { id:number; name:string; job_title:string; email:string; linkedin_url:string|null; photo_url:string|null }
 type CareerOpportunity = { id:number; title:string; department:string; location:string; employment_type:string; summary:string; description:string; application_email:string; application_url:string|null; closing_date:string|null }
-
-const defaultNews: NewsItem[] = [
-  { date: '12 AUG', tag: 'Community', title: 'College Open Day 2026', text: 'Tour our campus, meet our teachers and see learning in action.' },
-  { date: '22 AUG', tag: 'Student life', title: 'Culture & Arts Festival', text: 'An evening celebrating student performance, stories and creativity.' },
-  { date: '05 SEP', tag: 'Sport', title: 'Inter-house Athletics', text: 'Our school community comes together for a day of energy and team spirit.' },
-]
 
 const heroSlides = [
   { image: campusImage, alt: 'Waigani Christian College students gathered on campus', position: '55% center' },
@@ -83,7 +77,6 @@ function App() {
   const [sent, setSent] = useState(false)
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [news, setNews] = useState<NewsItem[]>(defaultNews)
   const [publishedPosts,setPublishedPosts] = useState<NewsItem[]>([])
   const [postsLoading,setPostsLoading] = useState(true)
   const [postsError,setPostsError] = useState(false)
@@ -102,7 +95,11 @@ function App() {
   const [shareNotice, setShareNotice] = useState('')
   const [shareTarget, setShareTarget] = useState<NewsItem|null>(null)
   const learningPage = learningPages.find(item=>item.slug===page.slice('/learning/'.length))
-  const learningStories = learningPage ? publishedPosts.filter(item=>learningPage.slug.includes('/') ? item.learning_page_id===learningPage.id : item.category===learningPage.category) : []
+  const newsItems = useMemo(() => publishedPosts.map(item => {
+    const targetPage = learningPages.find(target=>target.id===item.learning_page_id)
+    return targetPage?.slug.includes('/') ? {...item,tag:`${item.tag} · ${targetPage.title}`} : item
+  }),[publishedPosts,learningPages])
+  const learningStories = learningPage ? newsItems.filter(item=>learningPage.slug.includes('/') ? item.learning_page_id===learningPage.id : item.category===learningPage.category) : []
   const learningImages = {
     early_learning:{src:earlyChildrenImage,alt:'Young learners at Waigani Christian College'},
     primary_school:{src:learningImage,alt:'Students learning at Waigani Christian College'},
@@ -115,6 +112,35 @@ function App() {
     document.body.style.overflow = formOpen || searchOpen || selectedNews || shareTarget ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [formOpen, searchOpen, selectedNews, shareTarget])
+
+  useEffect(() => {
+    if (!selectedNews && !shareTarget) return
+    const dialog = document.querySelector<HTMLElement>(shareTarget ? '.share-panel' : '.story-modal')
+    if (!dialog) return
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input, select, textarea, [tabindex="0"]')).filter(element=>element.getClientRects().length > 0)
+    focusable()[0]?.focus({preventScroll:true})
+    const onKeyDown = (event:KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        if (shareTarget) setShareTarget(null)
+        else setSelectedNews(null)
+      }
+      if (event.key !== 'Tab') return
+      const controls = focusable()
+      const first = controls[0], last = controls[controls.length - 1]
+      if (!first) return
+      if (!dialog.contains(document.activeElement) || (event.shiftKey ? document.activeElement===first : document.activeElement===last)) {
+        event.preventDefault()
+        ;(event.shiftKey ? last : first).focus()
+      }
+    }
+    document.addEventListener('keydown',onKeyDown)
+    return () => {
+      document.removeEventListener('keydown',onKeyDown)
+      if (previousFocus?.isConnected) previousFocus.focus({preventScroll:true})
+    }
+  },[selectedNews,shareTarget])
 
   useEffect(() => {
     const titles: Record<string, string> = {
@@ -169,7 +195,6 @@ function App() {
       const toNewsItem = (post:typeof posts[number]):NewsItem => { const date=post.event_date?new Date(`${post.event_date}T00:00:00`):new Date(post.created_at); return {id:post.id,category:post.category,learning_page_id:post.learning_page_id,date:`${String(date.getDate()).padStart(2,'0')} ${months[date.getMonth()]}`,tag:labels[post.category]||'College',title:post.title,text:post.summary,body:post.body,media_url:post.media_url,media_type:post.media_type} }
       const mappedNews:NewsItem[] = posts.map(toNewsItem)
       setPublishedPosts(mappedNews)
-      setNews(mappedNews.slice(0,6))
       const sharedStoryId = new URLSearchParams(window.location.search).get('story')
       if (sharedStoryId) {
         // Shared links can point at older stories that are not in the latest six.
@@ -413,22 +438,11 @@ function App() {
           </div>
         </section>}
 
-        {(pageClass === 'home' || isNews) && <section className="news-section section" id="news">
-          <div className="news-heading"><div><p className="eyebrow">What’s happening</p><h2>Life at <em>Waigani.</em></h2></div><a href="#news" className="text-link">View all news <Arrow /></a></div>
-          <div className="news-list">
-            {news.map(item => <article className="news-card" key={item.id||item.title}>
-              <div className="news-card-media">
-                {item.media_url ? item.media_type==='video'
-                  ? <video src={item.media_url} preload="metadata" muted aria-label={`Video preview for ${item.title}`} />
-                  : <img src={item.media_url} alt="" loading="lazy" decoding="async" />
-                  : <div className="news-card-placeholder" aria-hidden="true"><span>WCC</span></div>}
-                <div className="date"><strong>{item.date.split(' ')[0]}</strong><span>{item.date.split(' ')[1]}</span></div>
-                {item.media_type==='video'&&<span className="media-badge">Video</span>}
-              </div>
-              <div className="news-copy"><small>{item.tag}</small><h3>{item.title}</h3><p>{item.text}</p></div>
-              <div className="news-card-actions"><button className="view-story" type="button" onClick={() => setSelectedNews(item)}>View more <Arrow /></button><button className="share-story" type="button" onClick={() => setShareTarget(item)} aria-label={`Share ${item.title}`}>Share <span aria-hidden="true">↗</span></button></div>
-            </article>)}
-          </div>
+        {pageClass === 'home' && <NewsCarousel items={newsItems} loading={postsLoading} error={postsError} paused={Boolean(formOpen || searchOpen || selectedNews || shareTarget)} onRead={setSelectedNews} onShare={setShareTarget}/>}
+
+        {isNews && <section className="news-section section" id="news">
+          <div className="news-heading"><div><p className="eyebrow">Across our college</p><h2>News &amp; <em>updates.</em></h2></div><a href="/learning" className="text-link">Explore learning pathways <Arrow /></a></div>
+          {postsLoading?<p className="learning-empty" role="status">Loading updates…</p>:postsError?<p className="learning-empty" role="status">Updates could not be loaded. Please try again shortly.</p>:newsItems.length===0?<p className="learning-empty">No updates yet. Please check back soon.</p>:<div className="news-list">{newsItems.map(item=><NewsCard key={item.id||item.title} item={item} onRead={setSelectedNews} onShare={setShareTarget}/>)}</div>}
         </section>}
 
         {isStaff && <section className="staff-section section">
