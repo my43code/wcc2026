@@ -2,8 +2,9 @@
 -- Run this in the Supabase SQL Editor after schema.sql. Safe to run again.
 
 -- An administrator is a signed-in user who was invited from the Supabase
--- dashboard (auth.users.invited_at is set) or whose email is
--- masomanu23@gmail.com. security definer lets this check read auth.users.
+-- dashboard (auth.users.invited_at is set) or whose verified email is
+-- masomanu23@gmail.com or judykupun@gmail.com.
+-- security definer lets this check read auth.users.
 
 create or replace function public.is_wcc_admin()
 returns boolean
@@ -18,12 +19,16 @@ as $$
     where id = (select auth.uid())
       and (
         invited_at is not null
-        or lower(email) = 'masomanu23@gmail.com'
+        or (
+          email_confirmed_at is not null
+          and lower(email) in ('masomanu23@gmail.com', 'judykupun@gmail.com')
+        )
       )
   );
 $$;
 
 revoke all on function public.is_wcc_admin() from public;
+revoke all on function public.is_wcc_admin() from anon;
 
 grant execute on function public.is_wcc_admin() to authenticated;
 

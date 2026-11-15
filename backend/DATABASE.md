@@ -143,9 +143,9 @@ Visitor access comes from the policies in `schema.sql`. Administrator access
 comes from `vite_admin_policies.sql`: the four tables and the bucket have admin
 policies that allow everything to a signed-in user for whom
 `public.is_wcc_admin()` is true. That function is true when the signed-in
-Supabase Auth user was invited (`auth.users.invited_at` is set) or their email
-is `masomanu23@gmail.com`. Anyone else who signs in gets the same access as a
-visitor.
+Supabase Auth user was invited (`auth.users.invited_at` is set) or their verified
+email is `masomanu23@gmail.com` or `judykupun@gmail.com`. Anyone else who signs
+in gets the same access as a visitor.
 
 The admin dashboard checks the signed-in user with `is_wcc_admin()`. The database
 policies are what protect the data.
