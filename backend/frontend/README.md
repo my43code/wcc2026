@@ -1,75 +1,59 @@
-# React + TypeScript + Vite
+# Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The Waigani Christian College website: a React 19 + TypeScript single-page app
+built with Vite. It holds both the public site and the admin dashboard, and it
+talks to Supabase directly from the browser.
 
-Currently, two official plugins are available:
+## Scripts
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Run `npm install` once in this folder, then:
 
-## React Compiler
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Starts the Vite dev server with hot reload (usually http://localhost:5173) |
+| `npm run build` | Type-checks (`tsc -b`) and builds the site into `dist/` |
+| `npm run preview` | Serves the built `dist/` folder locally |
+| `npm run lint` | Runs ESLint |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+In production the root `npm run build` builds this app, and the root
+`server.mjs` serves `dist/` (see [`HOSTINGER.md`](../../HOSTINGER.md)).
 
-## Expanding the ESLint configuration
+## Supabase settings
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+`.env.production` sets the two values the app needs:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- `VITE_SUPABASE_URL`: the Supabase project URL
+- `VITE_SUPABASE_PUBLISHABLE_KEY`: the project's publishable key
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Both are public. Vite builds `VITE_` variables into the JavaScript that
+browsers download, and row level security protects the data (see
+[`DATABASE.md`](../DATABASE.md)). Never put a secret key in a `VITE_` variable.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Vite reads `.env.production` only when building. During `npm run dev`,
+`src/supabase.ts` falls back to the same project URL and key, so the dev server
+uses the live data and changes made in the local admin dashboard are real. To
+work against another Supabase project, put both variables in `.env.local`,
+which Git ignores.
 
-```
+## Admin pages
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+- `/admin`: sign in with email address and password (Supabase Auth).
+- `/admin/setup`: opened from an invitation (or password reset) email. The
+  administrator chooses a password and then lands in the dashboard.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Administrators are invited from the Supabase dashboard. See
+[`DATABASE.md`](../DATABASE.md).
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Code map
 
-```
+- `src/main.tsx`: shows the admin dashboard for `/admin` paths and the public
+  site for everything else.
+- `src/App.tsx`: the public pages. The page is chosen from
+  `window.location.pathname`.
+- `src/Admin.tsx`: the admin dashboard and the set-password page.
+- `src/adminApi.ts`: maps the dashboard's `/api/...` request names to direct
+  Supabase calls. There is no HTTP API behind them.
+- `src/supabase.ts`: the Supabase client, and the code that finishes sign-in
+  from invitation and password reset links.
+- `src/App.css`, `src/Admin.css`, `src/index.css`: styles.
+- `src/assets/`: images. `public/`: files copied into `dist/` unchanged.

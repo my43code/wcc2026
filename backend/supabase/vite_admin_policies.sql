@@ -1,5 +1,9 @@
--- Vite-only admin access through Supabase Auth.
--- Run this once in the Supabase SQL Editor.
+-- Administrator access for the admin dashboard (/admin), through Supabase Auth.
+-- Run this in the Supabase SQL Editor after schema.sql. Safe to run again.
+
+-- An administrator is a signed-in user who was invited from the Supabase
+-- dashboard (auth.users.invited_at is set) or whose email is
+-- wccadmin@wcc.ac.pg. security definer lets this check read auth.users.
 
 create or replace function public.is_wcc_admin()
 returns boolean
@@ -23,6 +27,7 @@ revoke all on function public.is_wcc_admin() from public;
 
 grant execute on function public.is_wcc_admin() to authenticated;
 
+-- Administrators can read, add, change and delete every row, published or not.
 drop policy if exists "Admin manages posts" on public.posts;
 create policy "Admin manages posts" on public.posts for all to authenticated
 using ((select public.is_wcc_admin())) with check ((select public.is_wcc_admin()));
@@ -39,6 +44,8 @@ drop policy if exists "Admin manages careers" on public.career_opportunities;
 create policy "Admin manages careers" on public.career_opportunities for all to authenticated
 using ((select public.is_wcc_admin())) with check ((select public.is_wcc_admin()));
 
+-- Administrators can list, upload, replace and delete files in post-media.
+-- Visitors see the files through public URLs because the bucket is public.
 drop policy if exists "Admin reads post media" on storage.objects;
 create policy "Admin reads post media" on storage.objects for select to authenticated
 using (bucket_id = 'post-media' and (select public.is_wcc_admin()));

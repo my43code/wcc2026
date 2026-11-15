@@ -1,5 +1,6 @@
 -- Waigani Christian College: Supabase/PostgreSQL schema
--- Run this once in the Supabase SQL editor for a new project.
+-- Run this first in the Supabase SQL Editor, then run
+-- vite_admin_policies.sql. Safe to run again: it never drops tables or data.
 
 create extension if not exists pg_trgm;
 
@@ -182,5 +183,7 @@ on public.enquiries for insert
 to anon, authenticated
 with check (status = 'new');
 
--- The FastAPI server uses a SUPABASE_SECRET_KEY for all database access.
--- Never expose a secret key in Vite or other browser code.
+-- The website calls Supabase directly from the browser with the publishable
+-- key. The policies above control what visitors can do, and
+-- vite_admin_policies.sql adds administrator access. No secret key is used:
+-- never put one in Vite or other browser code.

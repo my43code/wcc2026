@@ -1,86 +1,184 @@
-# Website database inventory
+# Database
 
-The website uses Supabase PostgreSQL. The ready-to-run schema is in
-`supabase/schema.sql` and the admin access policies are in
-`supabase/vite_admin_policies.sql`.
+The website keeps its data in Supabase (PostgreSQL, project
+`qemfloodlswcorxwqrzw`). The browser talks to Supabase directly using the
+public publishable key, and row level security (RLS) decides what each request
+may do. No application server sits in between: `server.mjs` only serves the
+built site. No secret key is used. The old `SUPABASE_SECRET_KEY` and `WCC_*`
+variables belonged to the removed server code and are no longer used.
 
-> **Current architecture:** the browser talks to Supabase directly with the
-> publishable key. Row level security limits visitors to published content and
-> new enquiries; administrators sign in with Supabase Auth (invited users).
-> The `/api/...` paths below are the names `src/adminApi.ts` maps to Supabase
-> calls in the browser. The FastAPI code in `backend/app` is legacy and is
-> not deployed, and no secret key is needed by the website.
+## Setup
 
-## Stored server data
+In the Supabase SQL Editor, run these two files in this order. Both are safe to
+run again.
+
+1. [`supabase/schema.sql`](supabase/schema.sql): tables, the `post-media`
+   storage bucket, the search function and the visitor policies.
+2. [`supabase/vite_admin_policies.sql`](supabase/vite_admin_policies.sql): the
+   `is_wcc_admin()` check and the administrator policies.
+
+Then apply the one-time Supabase Auth settings in
+[`HOSTINGER.md`](../HOSTINGER.md#supabase-settings-one-time), so that invitation
+links work.
+
+## Tables
+
+Text limits are in characters. "Required" means `not null` with no default.
+`updated_at` is set automatically by a trigger whenever a row is updated.
 
 ### `posts`
 
-Used by the homepage news list, public search, and the admin content manager.
+News and event stories on the public site, managed in the admin dashboard.
 
-| Column | Purpose |
-| --- | --- |
-| `id` | Unique post identifier |
-| `title` | News/event title |
-| `summary` | Homepage and search excerpt |
-| `body` | Full story content |
-| `category` | One of `news_events`, `early_learning`, `primary_school`, `secondary_school`, `student_life` |
-| `event_date` | Optional calendar date |
-| `published` | Controls public visibility |
-| `promoted` | Moves featured content ahead of other posts |
-| `media_url` | Optional public Supabase Storage URL for an image or video |
-| `media_type` | Optional `image` or `video` display type |
-| `media_path` | Storage object path used for cleanup when a post is deleted |
-| `created_at` | Creation timestamp |
-| `updated_at` | Last-edit timestamp |
+| Column | Type | Rules |
+| --- | --- | --- |
+| `id` | bigint | Identity primary key |
+| `title` | text | Required, 3–160 |
+| `summary` | text | Required, 5–400 |
+| `body` | text | Default `''`, up to 10,000 |
+| `category` | text | Required: `news_events`, `early_learning`, `primary_school`, `secondary_school` or `student_life` |
+| `event_date` | date | Optional. The site shows it instead of `created_at` when set |
+| `published` | boolean | Default `true`. Only published posts are public |
+| `promoted` | boolean | Default `false`. Promoted posts are listed first |
+| `media_url` | text | Optional public URL of the image or video, up to 2,000 |
+| `media_type` | text | Optional: `image` or `video` |
+| `media_path` | text | Optional path of the file in `post-media`, up to 500 |
+| `created_at` | timestamptz | Default `now()` |
+| `updated_at` | timestamptz | Default `now()`, updated by trigger |
 
-API usage: `GET/POST /api/posts`, `PUT/DELETE /api/posts/{id}`, and
-`GET /api/search`.
-
-Optional post media is uploaded by administrators through `POST /api/media` and
-stored in the public Supabase Storage bucket named `post-media`. Images are
-limited to 10 MB and videos to 50 MB.
+If `posts` already existed before the media columns were introduced,
+`schema.sql` adds `media_url`, `media_type` and `media_path` without these
+checks.
 
 ### `enquiries`
 
-Used by the public enrolment form and admin enquiry inbox.
+Messages sent with the public site's Enquire form, read in the admin inbox.
 
-| Column | Purpose |
-| --- | --- |
-| `id` | Unique enquiry identifier |
-| `name` | Parent/carer name |
-| `email` | Contact email address |
-| `year_level` | Requested student year level |
-| `message` | Optional family message |
-| `status` | `new`, `in_progress`, or `resolved` |
-| `created_at` | Submission timestamp |
+| Column | Type | Rules |
+| --- | --- | --- |
+| `id` | bigint | Identity primary key |
+| `name` | text | Required, 2–120 |
+| `email` | text | Required, up to 320 (the database does not check the format) |
+| `year_level` | text | Required, 2–80 |
+| `message` | text | Default `''`, up to 3,000 |
+| `status` | text | Default `new`. One of `new`, `in_progress`, `resolved` |
+| `created_at` | timestamptz | Default `now()` |
 
-API usage: `POST/GET /api/enquiries` and `PATCH /api/enquiries/{id}`.
+### `staff_profiles`
 
-## Authentication and browser storage
+People on the Administration & staff page.
 
-Admin username, password, and token-signing secret are currently read from
-`WCC_ADMIN_USERNAME`, `WCC_ADMIN_PASSWORD`, and `WCC_SECRET_KEY`. They are not
-database tables. The browser keeps only `wcc_admin_token` in `sessionStorage`;
-it expires after eight hours and is removed on sign-out.
+| Column | Type | Rules |
+| --- | --- | --- |
+| `id` | bigint | Identity primary key |
+| `name` | text | Required, 2–120 |
+| `job_title` | text | Required, 2–160 |
+| `email` | text | Required, up to 320 |
+| `linkedin_url` | text | Optional, up to 500 |
+| `photo_url` | text | Optional public URL of the photo, up to 2,000 |
+| `photo_path` | text | Optional path of the photo in `post-media`, up to 500 |
+| `sort_order` | integer | Default `0`, must be 0 or more. Staff are listed by `sort_order`, then `name` |
+| `published` | boolean | Default `true` |
+| `created_at` | timestamptz | Default `now()` |
+| `updated_at` | timestamptz | Default `now()`, updated by trigger |
 
-Configure these server-only variables in `backend/.env.local` for local
-development, or in your hosting provider's environment-variable settings:
+### `career_opportunities`
 
-```env
-SUPABASE_URL=https://PROJECT_REF.supabase.co
-SUPABASE_SECRET_KEY=sb_secret_server-only-secret
-```
+Vacancies on the Career opportunities page.
 
-Do not prefix the secret key with `VITE_` and never place it in frontend
-code. Public clients may read published posts and submit new enquiries; only the
-server should manage unpublished posts or read/update enquiries.
+| Column | Type | Rules |
+| --- | --- | --- |
+| `id` | bigint | Identity primary key |
+| `title` | text | Required, 3–160 |
+| `department` | text | Default `''`, up to 120 |
+| `location` | text | Default `Waigani Heights, Port Moresby`, up to 160 |
+| `employment_type` | text | Default `Full-time`. One of `Full-time`, `Part-time`, `Contract`, `Casual`, `Internship` |
+| `summary` | text | Required, 5–500 |
+| `description` | text | Default `''`, up to 12,000 |
+| `application_email` | text | Required, up to 320 |
+| `application_url` | text | Optional, up to 2,000 |
+| `closing_date` | date | Optional. Roles are listed by closing date, soonest first, undated last |
+| `published` | boolean | Default `true` |
+| `created_at` | timestamptz | Default `now()` |
+| `updated_at` | timestamptz | Default `now()`, updated by trigger |
 
-## Migration checklist
+## File storage: the `post-media` bucket
 
-1. Create a Supabase project and run `supabase/schema.sql` in its SQL editor.
-2. Add the two server environment variables to the deployment host.
-3. If needed, export existing SQLite rows from `posts` and `enquiries` and import them.
-4. Start FastAPI and open `GET /api/health` to verify the Supabase connection.
-5. Verify public post/search access, enquiry submission, and every admin action.
-6. Retain any old `wcc.db` file as a backup until record counts are verified.
+- Public bucket: anyone who has a file's URL can view it.
+- At most 50 MB per file (`file_size_limit` 52428800 bytes).
+- Allowed types: JPEG, PNG, WebP and GIF images; MP4, WebM and MOV
+  (`video/quicktime`) videos.
+- The admin dashboard also limits images to 10 MB before uploading
+  (`frontend/src/adminApi.ts`). The bucket itself allows 50 MB for any allowed
+  type.
+- Post media and staff photos are both stored as `posts/<random id>.<ext>`. The
+  row keeps the public URL (`media_url` or `photo_url`) and the path
+  (`media_path` or `photo_path`). Deleting a post or staff profile in the
+  dashboard also deletes its file.
 
+## Search: `search_published_posts(search_term text)`
+
+The public site search calls this function with `supabase.rpc`.
+
+- Splits the search text into words and returns the posts that contain every
+  word (case-insensitive) in their title, summary or body.
+- Only published posts, promoted first, then newest; at most 20 results.
+- Returns `id`, `title`, `summary`, `category`, `event_date`, `promoted`,
+  `media_url` and `media_type` (not `body`).
+- Runs with the caller's permissions (`security invoker`), so RLS still
+  applies. Visitors and signed-in users may call it.
+
+## Who can do what
+
+RLS is enabled on all four tables.
+
+| | Visitors | Administrators |
+| --- | --- | --- |
+| `posts`, `staff_profiles`, `career_opportunities` | Read rows where `published` is true | Everything: read, add, edit and delete any row |
+| `enquiries` | Add an enquiry with status `new`. Cannot read, edit or delete enquiries | Everything |
+| Files in `post-media` | View them through their public URLs | List, upload, update and delete |
+| `search_published_posts` | Call it | Call it |
+
+Visitor access comes from the policies in `schema.sql`. Administrator access
+comes from `vite_admin_policies.sql`: the four tables and the bucket have admin
+policies that allow everything to a signed-in user for whom
+`public.is_wcc_admin()` is true. That function is true when the signed-in
+Supabase Auth user was invited (`auth.users.invited_at` is set) or their email
+is `wccadmin@wcc.ac.pg`. Anyone else who signs in gets the same access as a
+visitor.
+
+The admin dashboard only checks that someone is signed in. The database
+policies are what protect the data.
+
+## Adding and removing administrators
+
+1. In Supabase → Authentication → Users, choose **Add user** → **Send
+   invitation** and enter the person's email address.
+2. The link in the email opens `https://<your-domain>/admin/setup`, where they
+   choose a password (at least 8 characters). The link only goes there if the
+   Invite user email template is set up as described in `HOSTINGER.md`.
+3. After that they sign in at `/admin` with their email address and password.
+
+Every invited user is an administrator, so invite only people who should manage
+the website. To remove someone's access, delete their user in Supabase →
+Authentication → Users. It is also worth turning off **Allow new users to sign
+up** in Supabase → Authentication: invitations still work, and nobody can
+create an account on their own.
+
+## Where the browser code lives
+
+All paths are under `frontend/src/`.
+
+- [`supabase.ts`](frontend/src/supabase.ts): creates the Supabase client from
+  `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in
+  `frontend/.env.production`, falling back to the same values built into the
+  code. `completeAuthRedirect()` finishes sign-in from invitation and
+  password-reset links.
+- [`App.tsx`](frontend/src/App.tsx): the public site. Reads published posts,
+  staff and careers, runs the search, and adds enquiries.
+- [`Admin.tsx`](frontend/src/Admin.tsx): the admin dashboard at `/admin` and
+  the set-password page at `/admin/setup`.
+- [`adminApi.ts`](frontend/src/adminApi.ts): maps the dashboard's request names
+  (`/api/posts`, `/api/media` and so on) to direct Supabase calls in the
+  browser. No HTTP API sits behind those names. It also checks a file's type
+  and size before uploading.

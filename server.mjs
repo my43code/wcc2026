@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
+import { compress } from 'hono/compress'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const distDir = join(here, 'backend', 'frontend', 'dist')
@@ -26,6 +27,12 @@ const app = new Hono()
 
 app.get('/api/health', (c) => c.json({ status: 'healthy' }))
 app.all('/api/*', (c) => c.json({ detail: 'Not found' }, 404))
+
+// Gzip the HTML, JS, CSS, JSON and SVG below for browsers that accept it.
+// Photos and videos are already compressed, so Hono passes them through as is.
+// The threshold is lowered from Hono's 1 KB default because the built
+// index.html is smaller than that.
+app.use('*', compress({ threshold: 256 }))
 
 // Fingerprinted Vite assets never change, so browsers may cache them for a
 // year. HTML must always be revalidated so a new deploy is picked up at once.

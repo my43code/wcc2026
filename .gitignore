@@ -1,14 +1,19 @@
+# Local environment files and secrets: never commit these.
 backend/.env
 backend/.env.local
 backend/frontend/.env
 backend/frontend/.env.local
 .env
+.env.local
+.env.*.local
 .env.production
+# This file holds only the public Supabase URL and publishable key.
 !backend/frontend/.env.production
-backend/wcc.db
-**/__pycache__/
-*.py[cod]
+
+# Dependencies and build output
 backend/frontend/node_modules/
 /node_modules/
 backend/frontend/dist/
+
+# Logs
 *.log
