@@ -1,11 +1,26 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://qemfloodlswcorxwqrzw.supabase.co'
-const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_Xmm8LIgsyMdb955wNXr2Nw_niGPjvUN'
+// The website's Supabase project. Both values are public: every visitor's
+// browser receives them. VITE_ build variables (for example in the hosting
+// panel) may override them, but only when they are well-formed. createClient
+// throws on an invalid URL, which would stop the whole site from loading, so a
+// mistyped hosting variable must never get through.
+const defaultUrl = 'https://qemfloodlswcorxwqrzw.supabase.co'
+const defaultPublishableKey = 'sb_publishable_Xmm8LIgsyMdb955wNXr2Nw_niGPjvUN'
 
-if (!supabasePublishableKey) {
-  throw new Error('Missing VITE_SUPABASE_PUBLISHABLE_KEY')
+function isSupabaseUrl(value:string) {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' || url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+  } catch {
+    return false
+  }
 }
+
+const envUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim()
+const envKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '').trim()
+const supabaseUrl = isSupabaseUrl(envUrl) ? envUrl : defaultUrl
+const supabasePublishableKey = /^sb_publishable_[A-Za-z0-9_-]+$/.test(envKey) ? envKey : defaultPublishableKey
 
 export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
