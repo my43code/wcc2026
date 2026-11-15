@@ -1,8 +1,15 @@
 # Website database inventory
 
-The website API uses Supabase PostgreSQL. The ready-to-run schema is in
-`supabase/schema.sql`; the browser continues to call FastAPI so the database
-secret never reaches frontend code.
+The website uses Supabase PostgreSQL. The ready-to-run schema is in
+`supabase/schema.sql` and the admin access policies are in
+`supabase/vite_admin_policies.sql`.
+
+> **Current architecture:** the browser talks to Supabase directly with the
+> publishable key. Row level security limits visitors to published content and
+> new enquiries; administrators sign in with Supabase Auth (invited users).
+> The `/api/...` paths below are the names `src/adminApi.ts` maps to Supabase
+> calls in the browser. The FastAPI code in `backend/app` is legacy and is
+> not deployed, and no secret key is needed by the website.
 
 ## Stored server data
 

@@ -108,22 +108,26 @@ export default function Admin() {
     setEditor({...post,event_date:post.event_date||''}); setMediaFile(null); setEditingId(post.id); setSection('posts'); window.scrollTo({top:0,behavior:'smooth'})
   }
 
+  /** Run an admin action, show any failure in the notice bar, then refresh the lists. */
+  async function attempt(action:()=>Promise<unknown>, success:string, failure:string) {
+    setNotice('')
+    try { await action(); if (success) setNotice(success) }
+    catch(error) { setNotice(error instanceof Error ? error.message : failure) }
+    try { await loadData() } catch { /* the notice above already explains the failure */ }
+  }
+
   async function remove(post:Post) {
     if (!window.confirm(`Delete “${post.title}”?`)) return
-    await api(`/api/posts/${post.id}`,{method:'DELETE'}); await loadData()
+    await attempt(() => api(`/api/posts/${post.id}`,{method:'DELETE'}), 'Post deleted.', 'Unable to delete post')
   }
 
   async function changeStatus(id:number,status:Enquiry['status']) {
-    await api(`/api/enquiries/${id}`,{method:'PATCH',body:JSON.stringify({status})}); await loadData()
+    await attempt(() => api(`/api/enquiries/${id}`,{method:'PATCH',body:JSON.stringify({status})}), '', 'Unable to update enquiry')
   }
 
   async function removeEnquiry(item:Enquiry) {
     if (!window.confirm(`Permanently delete the enquiry from ${item.name}?`)) return
-    try {
-      await api(`/api/enquiries/${item.id}`,{method:'DELETE'})
-      setNotice('Enquiry deleted.')
-      await loadData()
-    } catch(error) { setNotice(error instanceof Error ? error.message : 'Unable to delete enquiry') }
+    await attempt(() => api(`/api/enquiries/${item.id}`,{method:'DELETE'}), 'Enquiry deleted.', 'Unable to delete enquiry')
   }
 
   async function saveStaff(event:FormEvent) {
@@ -136,7 +140,7 @@ export default function Admin() {
     } catch(error) { setNotice(error instanceof Error ? error.message : 'Unable to save staff profile') } finally { setSaving(false) }
   }
   function editStaff(person:Staff) { setStaffEditor(person); setEditingStaffId(person.id); setStaffPhoto(null); setSection('staff'); window.scrollTo({top:0,behavior:'smooth'}) }
-  async function removeStaff(person:Staff) { if (!window.confirm(`Delete ${person.name}'s profile?`)) return; await api(`/api/staff/${person.id}`,{method:'DELETE'}); await loadData() }
+  async function removeStaff(person:Staff) { if (!window.confirm(`Delete ${person.name}'s profile?`)) return; await attempt(() => api(`/api/staff/${person.id}`,{method:'DELETE'}), 'Staff profile deleted.', 'Unable to delete staff profile') }
   function startNewStaff() {
     setSection('staff'); setStaffEditor({...blankStaff}); setStaffPhoto(null); setEditingStaffId(null); setNotice('')
     window.setTimeout(() => {
@@ -154,7 +158,7 @@ export default function Admin() {
     } catch(error) { setNotice(error instanceof Error ? error.message : 'Unable to save career opportunity') } finally { setSaving(false) }
   }
   function editCareer(role:Career) { setCareerEditor({...role,closing_date:role.closing_date||''}); setEditingCareerId(role.id); setSection('careers'); window.scrollTo({top:0,behavior:'smooth'}) }
-  async function removeCareer(role:Career) { if (!window.confirm(`Delete “${role.title}”?`)) return; await api(`/api/careers/${role.id}`,{method:'DELETE'}); await loadData() }
+  async function removeCareer(role:Career) { if (!window.confirm(`Delete “${role.title}”?`)) return; await attempt(() => api(`/api/careers/${role.id}`,{method:'DELETE'}), 'Career opportunity deleted.', 'Unable to delete career opportunity') }
   function startNewCareer() { setSection('careers'); setCareerEditor({...blankCareer}); setEditingCareerId(null); setNotice(''); window.scrollTo({top:0,behavior:'smooth'}) }
 
   const visiblePosts = useMemo(() => filter==='all'?posts:posts.filter(post=>post.category===filter),[filter,posts])

@@ -11,3 +11,4 @@ backend/wcc.db
 backend/frontend/node_modules/
 /node_modules/
 backend/frontend/dist/
+*.log

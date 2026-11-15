@@ -133,15 +133,17 @@ function App() {
     const loadPosts = async () => {
       const { data, error } = await supabase.from('posts').select('*').eq('published', true).order('promoted', { ascending:false }).order('created_at', { ascending:false })
       if (error) throw error
-      const posts = (data || []) as Array<{id:number;title:string;summary:string;body:string;category:string;event_date:string|null;media_url:string|null;media_type:'image'|'video'|null}>
+      const posts = (data || []) as Array<{id:number;title:string;summary:string;body:string;category:string;event_date:string|null;created_at:string;media_url:string|null;media_type:'image'|'video'|null}>
       const labels:Record<string,string> = {news_events:'News',early_learning:'Early learning',primary_school:'Primary',secondary_school:'Secondary',student_life:'Student life'}
       const months=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
-      const mappedNews:NewsItem[] = posts.slice(0,6).map(post => { const date=post.event_date?new Date(`${post.event_date}T00:00:00`):new Date(); return {id:post.id,date:`${String(date.getDate()).padStart(2,'0')} ${months[date.getMonth()]}`,tag:labels[post.category]||'College',title:post.title,text:post.summary,body:post.body,media_url:post.media_url,media_type:post.media_type} })
+      const toNewsItem = (post:typeof posts[number]):NewsItem => { const date=post.event_date?new Date(`${post.event_date}T00:00:00`):new Date(post.created_at); return {id:post.id,date:`${String(date.getDate()).padStart(2,'0')} ${months[date.getMonth()]}`,tag:labels[post.category]||'College',title:post.title,text:post.summary,body:post.body,media_url:post.media_url,media_type:post.media_type} }
+      const mappedNews:NewsItem[] = posts.slice(0,6).map(toNewsItem)
       setNews(mappedNews)
       const sharedStoryId = new URLSearchParams(window.location.search).get('story')
       if (sharedStoryId) {
-        const sharedStory = mappedNews.find(item => String(item.id) === sharedStoryId)
-        if (sharedStory) setSelectedNews(sharedStory)
+        // Shared links can point at older stories that are not in the latest six.
+        const sharedPost = posts.find(post => String(post.id) === sharedStoryId)
+        if (sharedPost) setSelectedNews(toNewsItem(sharedPost))
       }
     }
     loadPosts().catch(() => undefined)
@@ -176,12 +178,15 @@ function App() {
     const query = searchQuery.trim()
     if (!query) return
     setSearching(true)
+    const websiteResults = searchWebsiteSections(query)
     try {
-      const websiteResults = searchWebsiteSections(query)
       const { data, error } = await supabase.rpc('search_published_posts', { search_term:query })
       if (error) throw error
       const postResults:Array<Omit<SearchResult,'href'>> = data || []
       setSearchResults([...postResults.map(result=>({...result,href:'/news-events'})),...websiteResults])
+    } catch {
+      // News search is unavailable; still show matching website sections.
+      setSearchResults(websiteResults)
     } finally { setSearching(false) }
   }
 

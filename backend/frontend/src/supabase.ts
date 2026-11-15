@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://qemfloodlswcorxwqrzw.supabase.co'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://qemfloodlswcorxwqrzw.supabase.co'
 const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_Xmm8LIgsyMdb955wNXr2Nw_niGPjvUN'
 
 if (!supabasePublishableKey) {

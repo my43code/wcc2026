@@ -1,5 +1,17 @@
 import { supabase } from './supabase'
 
+const mediaBucket = 'post-media'
+const allowedMedia = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'video/quicktime']
+
+/** Delete a row and, if it referenced an uploaded file, remove that file too. */
+async function deleteWithMedia(table:'posts'|'staff_profiles', pathColumn:'media_path'|'photo_path', id:string|undefined) {
+  const { data } = await supabase.from(table).select(pathColumn).eq('id', id).maybeSingle()
+  check(await supabase.from(table).delete().eq('id', id))
+  const mediaPath = (data as Record<string, string|null> | null)?.[pathColumn]
+  if (mediaPath) await supabase.storage.from(mediaBucket).remove([mediaPath])
+  return null
+}
+
 function parseBody(options:RequestInit) {
   return typeof options.body === 'string' ? JSON.parse(options.body) : options.body
 }
@@ -44,18 +56,21 @@ export async function adminApi(path:string, options:RequestInit = {}) {
   if (url.pathname === '/api/media' && method === 'POST') {
     const file = (options.body as FormData).get('file') as File | null
     if (!file) throw new Error('Choose a file to upload')
+    if (!allowedMedia.includes(file.type)) throw new Error('Unsupported file type. Use JPG, PNG, WebP, GIF, MP4, WebM or MOV.')
     const mediaType = file.type.startsWith('video/') ? 'video' : 'image'
-    const extension = file.name.includes('.') ? `.${file.name.split('.').pop()}` : ''
+    const limit = mediaType === 'video' ? 50 : 10
+    if (file.size > limit * 1024 * 1024) throw new Error(`${mediaType === 'video' ? 'Videos' : 'Images'} must be ${limit} MB or smaller.`)
+    const extension = file.name.includes('.') ? `.${file.name.split('.').pop()!.toLowerCase()}` : ''
     const mediaPath = `posts/${crypto.randomUUID().replaceAll('-', '')}${extension}`
-    check(await supabase.storage.from('post-media').upload(mediaPath, file, { contentType:file.type, upsert:false }))
-    return { media_url:supabase.storage.from('post-media').getPublicUrl(mediaPath).data.publicUrl, media_type:mediaType, media_path:mediaPath }
+    check(await supabase.storage.from(mediaBucket).upload(mediaPath, file, { contentType:file.type, upsert:false }))
+    return { media_url:supabase.storage.from(mediaBucket).getPublicUrl(mediaPath).data.publicUrl, media_type:mediaType, media_path:mediaPath }
   }
 
   if (url.pathname.startsWith('/api/posts')) {
     if (method === 'GET') return check(await supabase.from('posts').select('*').order('promoted', { ascending:false }).order('created_at', { ascending:false }))
     if (method === 'POST') return check(await supabase.from('posts').insert(body).select().single())
     if (method === 'PUT') return check(await supabase.from('posts').update(body).eq('id', id).select().single())
-    if (method === 'DELETE') { check(await supabase.from('posts').delete().eq('id', id)); return null }
+    if (method === 'DELETE') return deleteWithMedia('posts', 'media_path', id)
   }
 
   if (url.pathname.startsWith('/api/enquiries')) {
@@ -68,7 +83,7 @@ export async function adminApi(path:string, options:RequestInit = {}) {
     if (method === 'GET') return check(await supabase.from('staff_profiles').select('*').order('sort_order').order('name'))
     if (method === 'POST') return check(await supabase.from('staff_profiles').insert(body).select().single())
     if (method === 'PUT') return check(await supabase.from('staff_profiles').update(body).eq('id', id).select().single())
-    if (method === 'DELETE') { check(await supabase.from('staff_profiles').delete().eq('id', id)); return null }
+    if (method === 'DELETE') return deleteWithMedia('staff_profiles', 'photo_path', id)
   }
 
   if (url.pathname.startsWith('/api/careers')) {
