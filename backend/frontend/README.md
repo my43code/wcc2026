@@ -40,6 +40,14 @@ which Git ignores.
 - `/admin`: sign in with email address and password (Supabase Auth).
 - `/admin/setup`: opened from an invitation (or password reset) email. The
   administrator chooses a password and then lands in the dashboard.
+- **Learning pages** in the dashboard: edit the four pathway pages, manage
+  subpages, and add page-specific posts. FODE includes Grade 10 and Grade 12
+  upgrading pages.
+
+Public learning pages live at `/learning/<slug>`, including
+`/learning/fode/grade-10-upgrading` and `/learning/fode/grade-12-upgrading`.
+Each pathway overview lists its category's posts; subpages list posts assigned
+to that page. Draft pages are visible only to administrators in the dashboard.
 
 Administrators are invited from the Supabase dashboard. See
 [`DATABASE.md`](../DATABASE.md).

@@ -59,6 +59,13 @@ export async function adminApi(path:string, options:RequestInit = {}) {
   const body = parseBody(options)
   const id = path.match(/\/(\d+)$/)?.[1]
 
+  if (url.pathname.startsWith('/api/learning-pages')) {
+    if (method === 'GET') return check(await supabase.from('learning_pages').select('*').order('sort_order').order('title'))
+    if (method === 'POST') return check(await supabase.from('learning_pages').insert(body).select().single())
+    if (method === 'PUT') return check(await supabase.from('learning_pages').update(body).eq('id', id).select().single())
+    if (method === 'DELETE') { check(await supabase.from('learning_pages').delete().eq('id', id)); return null }
+  }
+
   if (url.pathname === '/api/media' && method === 'POST') {
     const file = (options.body as FormData).get('file') as File | null
     if (!file) throw new Error('Choose a file to upload')

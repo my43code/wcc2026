@@ -9,13 +9,15 @@ variables belonged to the removed server code and are no longer used.
 
 ## Setup
 
-In the Supabase SQL Editor, run these two files in this order. Both are safe to
-run again.
+In the Supabase SQL Editor, run these files in this order. They are safe to
+run again and preserve existing learning-page edits.
 
 1. [`supabase/schema.sql`](supabase/schema.sql): tables, the `post-media`
    storage bucket, the search function and the visitor policies.
 2. [`supabase/vite_admin_policies.sql`](supabase/vite_admin_policies.sql): the
    `is_wcc_admin()` check and the administrator policies.
+3. [`supabase/learning_pages.sql`](supabase/learning_pages.sql): managed learning
+   pages, the FODE post category, page targeting and initial page content.
 
 Then apply the one-time Supabase Auth settings in
 [`HOSTINGER.md`](../HOSTINGER.md#supabase-settings-one-time), so that invitation
@@ -36,7 +38,8 @@ News and event stories on the public site, managed in the admin dashboard.
 | `title` | text | Required, 3–160 |
 | `summary` | text | Required, 5–400 |
 | `body` | text | Default `''`, up to 10,000 |
-| `category` | text | Required: `news_events`, `early_learning`, `primary_school`, `secondary_school` or `student_life` |
+| `category` | text | Required: `news_events`, `early_learning`, `primary_school`, `secondary_school`, `student_life` or `fode` |
+| `learning_page_id` | bigint | Optional page target in the same category. Deleting a subpage clears this link and preserves the post |
 | `event_date` | date | Optional. The site shows it instead of `created_at` when set |
 | `published` | boolean | Default `true`. Only published posts are public |
 | `promoted` | boolean | Default `false`. Promoted posts are listed first |
@@ -63,6 +66,28 @@ Messages sent with the public site's Enquire form, read in the admin inbox.
 | `message` | text | Default `''`, up to 3,000 |
 | `status` | text | Default `new`. One of `new`, `in_progress`, `resolved` |
 | `created_at` | timestamptz | Default `now()` |
+
+### `learning_pages`
+
+Editable learning content at `/learning/<slug>`. The initial six pages cover
+Early Learning, Primary School, Secondary School, FODE, Grade 10 upgrading and
+Grade 12 upgrading. Admins can add more subpages under any pathway.
+
+Each page has a unique `slug`, a learning `category`, `title`, `eyebrow`,
+`summary`, plain-text `body`, `published` flag and `sort_order`. Draft pages
+are private to administrators. The four pathway overview addresses cannot be
+renamed or deleted; their content and visibility remain editable.
+
+Posts may target a page in the same category. An overview shows all posts in
+its category; a subpage shows posts assigned to it. Posts have their own
+publication switch, so published posts also appear in college news even if
+their page is a draft. Deleting a subpage preserves its posts and removes
+their page assignment.
+
+The rollback-only checks in
+[`supabase/verify_learning_pages.sql`](supabase/verify_learning_pages.sql) cover
+admin editing, visitor permissions, draft privacy, category consistency and
+safe subpage deletion.
 
 ### `staff_profiles`
 
@@ -130,17 +155,18 @@ The public site search calls this function with `supabase.rpc`.
 
 ## Who can do what
 
-RLS is enabled on all four tables.
+RLS is enabled on all five tables.
 
 | | Visitors | Administrators |
 | --- | --- | --- |
 | `posts`, `staff_profiles`, `career_opportunities` | Read rows where `published` is true | Everything: read, add, edit and delete any row |
+| `learning_pages` | Read published pages | Manage pages; pathway overview addresses are protected |
 | `enquiries` | Add an enquiry with status `new`. Cannot read, edit or delete enquiries | Everything |
 | Files in `post-media` | View them through their public URLs | List, upload, update and delete |
 | `search_published_posts` | Call it | Call it |
 
 Visitor access comes from the policies in `schema.sql`. Administrator access
-comes from `vite_admin_policies.sql`: the four tables and the bucket have admin
+comes from `vite_admin_policies.sql` and `learning_pages.sql`: the tables and the bucket have admin
 policies that allow everything to a signed-in user for whom
 `public.is_wcc_admin()` is true. That function is true when the signed-in
 Supabase Auth user was invited (`auth.users.invited_at` is set) or their verified

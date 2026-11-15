@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 import { supabase } from './supabase'
+import LearningPageView from './LearningPage'
+import type { LearningStory } from './LearningPage'
+import type { LearningPage } from './learning'
+import { learningPageHref } from './learning'
 import campusImage from './assets/471375683_122111557094676720_8636929484856250894_n.jpg'
 import facilitiesImage from './assets/IMG_0354.jpg'
 import transportImage from './assets/IMG_0493.jpg'
@@ -16,12 +20,13 @@ import computerLabImage from './assets/p2.jpg'
 import libraryImage from './assets/p3.jpg'
 
 const programs = [
-  { icon: '✦', title: 'Early Learning', ages: 'Ages 3–5', text: 'A joyful, play-led foundation that builds confidence, curiosity and belonging.' },
-  { icon: '⌁', title: 'Primary School', ages: 'Grades 1–6', text: 'Strong literacy and numeracy, enriched by science, creativity and character.' },
-  { icon: '◇', title: 'Secondary School', ages: 'Grades 7–12', text: 'Purposeful pathways, expert teaching and preparation for life beyond school.' },
+  { icon: '✦', title: 'Early Learning', slug:'early-learning', ages: 'Ages 3–5', text: 'A joyful, play-led foundation that builds confidence, curiosity and belonging.' },
+  { icon: '⌁', title: 'Primary School', slug:'primary-school', ages: 'Grades 1–6', text: 'Strong literacy and numeracy, enriched by science, creativity and character.' },
+  { icon: '◇', title: 'Secondary School', slug:'secondary-school', ages: 'Grades 7–12', text: 'Purposeful pathways, expert teaching and preparation for life beyond school.' },
+  { icon:'↗', title:'FODE', slug:'fode', ages:'Grade 10 and 12 upgrading', text:'Explore Grade 10 and Grade 12 upgrading and take the next step in your learning journey.' },
 ]
 
-type NewsItem = { id?: number; date: string; tag: string; title: string; text: string; body?:string; media_url?:string|null; media_type?:'image'|'video'|null }
+type NewsItem = LearningStory
 type SearchResult = { id:number|string; title:string; summary:string; category:string; event_date:string|null; promoted:boolean; href:string }
 type StaffProfile = { id:number; name:string; job_title:string; email:string; linkedin_url:string|null; photo_url:string|null }
 type CareerOpportunity = { id:number; title:string; department:string; location:string; employment_type:string; summary:string; description:string; application_email:string; application_url:string|null; closing_date:string|null }
@@ -64,7 +69,8 @@ function Arrow() { return <span aria-hidden="true">↗</span> }
 function App() {
   const page = window.location.pathname.replace(/\/+$/, '') || '/'
   const knownPages = new Set(['/our-school', '/about-us', '/learning', '/student-life', '/news-events', '/administration-staff', '/career-opportunities'])
-  const pageClass = knownPages.has(page) ? page.slice(1) : 'home'
+  const isLearningDetail = page.startsWith('/learning/')
+  const pageClass = isLearningDetail ? 'learning-detail' : knownPages.has(page) ? page.slice(1) : 'home'
   const isSchool = page === '/our-school'
   const isLearning = page === '/learning'
   const isLife = page === '/student-life'
@@ -78,6 +84,12 @@ function App() {
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [news, setNews] = useState<NewsItem[]>(defaultNews)
+  const [publishedPosts,setPublishedPosts] = useState<NewsItem[]>([])
+  const [postsLoading,setPostsLoading] = useState(true)
+  const [postsError,setPostsError] = useState(false)
+  const [learningPages,setLearningPages] = useState<LearningPage[]>([])
+  const [learningPagesLoading,setLearningPagesLoading] = useState(true)
+  const [learningPagesError,setLearningPagesError] = useState(false)
   const [staff, setStaff] = useState<StaffProfile[]>([])
   const [careers, setCareers] = useState<CareerOpportunity[]>([])
   const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null)
@@ -89,6 +101,15 @@ function App() {
   const [sliderPaused, setSliderPaused] = useState(false)
   const [shareNotice, setShareNotice] = useState('')
   const [shareTarget, setShareTarget] = useState<NewsItem|null>(null)
+  const learningPage = learningPages.find(item=>item.slug===page.slice('/learning/'.length))
+  const learningStories = learningPage ? publishedPosts.filter(item=>learningPage.slug.includes('/') ? item.learning_page_id===learningPage.id : item.category===learningPage.category) : []
+  const learningImages = {
+    early_learning:{src:earlyChildrenImage,alt:'Young learners at Waigani Christian College'},
+    primary_school:{src:learningImage,alt:'Students learning at Waigani Christian College'},
+    secondary_school:{src:computerLabImage,alt:'Waigani Christian College computer laboratory'},
+    fode:{src:libraryImage,alt:'The Waigani Christian College library'},
+  }
+  const learningImageForPage = learningImages[learningPage?.category || 'fode']
 
   useEffect(() => {
     document.body.style.overflow = formOpen || searchOpen || selectedNews || shareTarget ? 'hidden' : ''
@@ -106,8 +127,17 @@ function App() {
       '/about-us': 'About Us | Waigani Christian College',
       '/career-opportunities': 'Career Opportunities | Waigani Christian College',
     }
-    document.title = titles[page] || titles['/']
-  }, [page])
+    document.title = isLearningDetail ? `${learningPage?.title || 'Learning'} | Waigani Christian College` : titles[page] || titles['/']
+  }, [page,isLearningDetail,learningPage?.title])
+
+  useEffect(() => {
+    const loadLearningPages = async () => {
+      const { data,error } = await supabase.from('learning_pages').select('*').eq('published',true).order('sort_order').order('title')
+      if (error) throw error
+      setLearningPages(data || [])
+    }
+    loadLearningPages().catch(()=>setLearningPagesError(true)).finally(()=>setLearningPagesLoading(false))
+  },[])
 
   useEffect(() => {
     if (!isStaff) return
@@ -133,12 +163,13 @@ function App() {
     const loadPosts = async () => {
       const { data, error } = await supabase.from('posts').select('*').eq('published', true).order('promoted', { ascending:false }).order('created_at', { ascending:false })
       if (error) throw error
-      const posts = (data || []) as Array<{id:number;title:string;summary:string;body:string;category:string;event_date:string|null;created_at:string;media_url:string|null;media_type:'image'|'video'|null}>
-      const labels:Record<string,string> = {news_events:'News',early_learning:'Early learning',primary_school:'Primary',secondary_school:'Secondary',student_life:'Student life'}
+      const posts = (data || []) as Array<{id:number;title:string;summary:string;body:string;category:string;learning_page_id:number|null;event_date:string|null;created_at:string;media_url:string|null;media_type:'image'|'video'|null}>
+      const labels:Record<string,string> = {news_events:'News',early_learning:'Early learning',primary_school:'Primary',secondary_school:'Secondary',student_life:'Student life',fode:'FODE'}
       const months=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
-      const toNewsItem = (post:typeof posts[number]):NewsItem => { const date=post.event_date?new Date(`${post.event_date}T00:00:00`):new Date(post.created_at); return {id:post.id,date:`${String(date.getDate()).padStart(2,'0')} ${months[date.getMonth()]}`,tag:labels[post.category]||'College',title:post.title,text:post.summary,body:post.body,media_url:post.media_url,media_type:post.media_type} }
-      const mappedNews:NewsItem[] = posts.slice(0,6).map(toNewsItem)
-      setNews(mappedNews)
+      const toNewsItem = (post:typeof posts[number]):NewsItem => { const date=post.event_date?new Date(`${post.event_date}T00:00:00`):new Date(post.created_at); return {id:post.id,category:post.category,learning_page_id:post.learning_page_id,date:`${String(date.getDate()).padStart(2,'0')} ${months[date.getMonth()]}`,tag:labels[post.category]||'College',title:post.title,text:post.summary,body:post.body,media_url:post.media_url,media_type:post.media_type} }
+      const mappedNews:NewsItem[] = posts.map(toNewsItem)
+      setPublishedPosts(mappedNews)
+      setNews(mappedNews.slice(0,6))
       const sharedStoryId = new URLSearchParams(window.location.search).get('story')
       if (sharedStoryId) {
         // Shared links can point at older stories that are not in the latest six.
@@ -146,7 +177,7 @@ function App() {
         if (sharedPost) setSelectedNews(toNewsItem(sharedPost))
       }
     }
-    loadPosts().catch(() => undefined)
+    loadPosts().catch(() => setPostsError(true)).finally(()=>setPostsLoading(false))
   }, [])
 
   useEffect(() => {
@@ -178,12 +209,14 @@ function App() {
     const query = searchQuery.trim()
     if (!query) return
     setSearching(true)
-    const websiteResults = searchWebsiteSections(query)
+    const terms = query.toLocaleLowerCase().split(/\s+/).filter(Boolean)
+    const learningResults:SearchResult[] = learningPages.filter(item=>terms.every(term=>`${item.title} ${item.summary} ${item.body}`.toLocaleLowerCase().includes(term))).map(item=>({id:`learning-${item.id}`,title:item.title,summary:item.summary,category:'learning',event_date:null,promoted:false,href:learningPageHref(item)}))
+    const websiteResults = [...learningResults,...searchWebsiteSections(query)]
     try {
       const { data, error } = await supabase.rpc('search_published_posts', { search_term:query })
       if (error) throw error
       const postResults:Array<Omit<SearchResult,'href'>> = data || []
-      setSearchResults([...postResults.map(result=>({...result,href:'/news-events'})),...websiteResults])
+      setSearchResults([...postResults.map(result=>({...result,href:`/news-events?story=${result.id}`})),...websiteResults])
     } catch {
       // News search is unavailable; still show matching website sections.
       setSearchResults(websiteResults)
@@ -244,7 +277,7 @@ function App() {
             </div>
           </div>
           <a href="/our-school" onClick={closeMenu} aria-current={isSchool ? 'page' : undefined}>Our school</a>
-          <a href="/learning" onClick={closeMenu} aria-current={isLearning ? 'page' : undefined}>Learning</a>
+          <div className="nav-dropdown learning-nav-dropdown"><a href="/learning" onClick={closeMenu} aria-current={isLearning || isLearningDetail ? 'page' : undefined}>Learning <span aria-hidden="true">⌄</span></a><div className="nav-dropdown-menu">{programs.map(program=><a key={program.slug} href={learningPageHref(program.slug)} onClick={closeMenu}>{program.title}{program.slug==='fode'?' · Grade 10 & 12':''}</a>)}</div></div>
           <a href="/student-life" onClick={closeMenu} aria-current={isLife ? 'page' : undefined}>Student life</a>
           <a href="/news-events" onClick={closeMenu} aria-current={isNews ? 'page' : undefined}>News & events</a>
           <button className="search-button" onClick={() => { setSearchOpen(true); closeMenu() }} aria-label="Search website">⌕ <span>Search</span></button>
@@ -253,6 +286,7 @@ function App() {
       </header>
 
       <main>
+        {isLearningDetail && <LearningPageView page={learningPage} pages={learningPages} loading={learningPagesLoading} error={learningPagesError} image={learningImageForPage.src} imageAlt={learningImageForPage.alt} stories={learningStories} postsLoading={postsLoading} postsError={postsError} onEnquire={()=>setFormOpen(true)} onRead={setSelectedNews} onShare={setShareTarget}/>}
         {(pageClass === 'home' || isSchool) && <section className="hero-section" id="home">
           <div className="hero-content">
             <p className="eyebrow light">Welcome to Waigani Christian College</p>
@@ -343,7 +377,7 @@ function App() {
                 <p className="program-age">{program.ages}</p>
                 <h3>{program.title}</h3>
                 <p>{program.text}</p>
-                <a href="#contact" aria-label={`Learn about ${program.title}`}><Arrow /></a>
+                <a href={learningPageHref(program.slug)} aria-label={`Learn about ${program.title}`}><Arrow /></a>
               </article>
             ))}
           </div>
@@ -431,7 +465,7 @@ function App() {
         <button onClick={() => setFormOpen(true)}><span aria-hidden="true">&#9993;</span>Enquire</button>
       </nav>
 
-      {formOpen && <div className="modal-backdrop" role="presentation" onMouseDown={() => setFormOpen(false)}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title" onMouseDown={e => e.stopPropagation()}><button className="modal-close" onClick={() => setFormOpen(false)} aria-label="Close">×</button>{sent ? <div className="success"><span>✓</span><h2>Thank you.</h2><p>Our enrolments team will be in touch shortly.</p><button className="button navy" onClick={() => { setFormOpen(false); setSent(false); setFormError('') }}>Done</button></div> : <><p className="eyebrow">Start a conversation</p><h2 id="form-title">Enquire about Waigani Christian College</h2><p>Tell us a little about your family and our team will contact you.</p><form onSubmit={submit}><label>Parent or carer name<input required name="name" autoFocus /></label><label>Email address<input required type="email" name="email" /></label><label>Student year level<select name="year_level" required defaultValue=""><option value="" disabled>Select a year level</option><option>Early Learning</option><option>Primary School</option><option>Secondary School</option></select></label><label>Message <span>(optional)</span><textarea name="message" rows={3}></textarea></label>{formError&&<div className="form-error" role="alert">{formError}</div>}<button className="button navy" type="submit" disabled={submitting}>{submitting?'Sending…':<>Send enquiry <Arrow /></>}</button></form></>}</div></div>}
+      {formOpen && <div className="modal-backdrop" role="presentation" onMouseDown={() => setFormOpen(false)}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="form-title" onMouseDown={e => e.stopPropagation()}><button className="modal-close" onClick={() => setFormOpen(false)} aria-label="Close">×</button>{sent ? <div className="success"><span>✓</span><h2>Thank you.</h2><p>Our enrolments team will be in touch shortly.</p><button className="button navy" onClick={() => { setFormOpen(false); setSent(false); setFormError('') }}>Done</button></div> : <><p className="eyebrow">Start a conversation</p><h2 id="form-title">Enquire about Waigani Christian College</h2><p>Tell us a little about your family and our team will contact you.</p><form onSubmit={submit}><label>Parent or carer name<input required name="name" autoFocus /></label><label>Email address<input required type="email" name="email" /></label><label>Student year level<select name="year_level" required defaultValue=""><option value="" disabled>Select a year level</option><option>Early Learning</option><option>Primary School</option><option>Secondary School</option><option>FODE: Grade 10 Upgrading</option><option>FODE: Grade 12 Upgrading</option></select></label><label>Message <span>(optional)</span><textarea name="message" rows={3}></textarea></label>{formError&&<div className="form-error" role="alert">{formError}</div>}<button className="button navy" type="submit" disabled={submitting}>{submitting?'Sending…':<>Send enquiry <Arrow /></>}</button></form></>}</div></div>}
 
       {selectedNews && <div className="story-backdrop" role="presentation" onMouseDown={() => setSelectedNews(null)}><article className="story-modal" role="dialog" aria-modal="true" aria-labelledby="story-title" onMouseDown={event => event.stopPropagation()}><button className="story-close" type="button" onClick={() => setSelectedNews(null)} aria-label="Close story">×</button>{selectedNews.media_url&&<div className="story-media">{selectedNews.media_type==='video'?<video src={selectedNews.media_url} controls autoPlay preload="metadata"/>:<img src={selectedNews.media_url} alt={selectedNews.title} loading="lazy" decoding="async" />}</div>}<div className="story-content"><div className="story-meta"><span>{selectedNews.tag}</span><time>{selectedNews.date}</time></div><h2 id="story-title">{selectedNews.title}</h2><p className="story-summary">{selectedNews.text}</p>{selectedNews.body&&selectedNews.body!==selectedNews.text&&<div className="story-body">{selectedNews.body.split(/\n+/).filter(Boolean).map((paragraph,index)=><p key={index}>{paragraph}</p>)}</div>}<div className="story-actions"><button className="button navy story-done" type="button" onClick={() => setSelectedNews(null)}>Close story</button><button className="button story-share-button" type="button" onClick={() => setShareTarget(selectedNews)}>Share this story ↗</button></div></div></article></div>}
 

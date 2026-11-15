@@ -1,6 +1,7 @@
 -- Waigani Christian College: Supabase/PostgreSQL schema
 -- Run this first in the Supabase SQL Editor, then run
--- vite_admin_policies.sql. Safe to run again: it never drops tables or data.
+-- vite_admin_policies.sql and learning_pages.sql.
+-- Safe to run again: it never drops tables or data.
 
 create extension if not exists pg_trgm;
 
@@ -11,7 +12,7 @@ create table if not exists public.posts (
   body text not null default '' check (char_length(body) <= 10000),
   category text not null check (category in (
     'news_events', 'early_learning', 'primary_school',
-    'secondary_school', 'student_life'
+    'secondary_school', 'student_life', 'fode'
   )),
   event_date date,
   published boolean not null default true,
