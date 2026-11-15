@@ -27,6 +27,11 @@ async function requireAdmin() {
     await supabase.auth.signOut()
     throw new Error('Admin sign-in required')
   }
+  const { data:isAdmin, error:permissionError } = await supabase.rpc('is_wcc_admin')
+  if (permissionError || !isAdmin) {
+    await supabase.auth.signOut()
+    throw new Error(permissionError?.message || 'This account does not have administrator access.')
+  }
   return data.user
 }
 
@@ -41,6 +46,7 @@ export async function adminApi(path:string, options:RequestInit = {}) {
       await supabase.auth.signOut()
       throw new Error(error?.message || 'Incorrect email or password')
     }
+    await requireAdmin()
     return { access_token:data.session.access_token, token_type:'bearer', expires_in:data.session.expires_in }
   }
 

@@ -3,7 +3,7 @@
 
 -- An administrator is a signed-in user who was invited from the Supabase
 -- dashboard (auth.users.invited_at is set) or whose email is
--- wccadmin@wcc.ac.pg. security definer lets this check read auth.users.
+-- masomanu23@gmail.com. security definer lets this check read auth.users.
 
 create or replace function public.is_wcc_admin()
 returns boolean
@@ -18,7 +18,7 @@ as $$
     where id = (select auth.uid())
       and (
         invited_at is not null
-        or lower(email) = 'wccadmin@wcc.ac.pg'
+        or lower(email) = 'masomanu23@gmail.com'
       )
   );
 $$;

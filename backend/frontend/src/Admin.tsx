@@ -24,7 +24,9 @@ const blankStaff:StaffEditor = { name:'', job_title:'', email:'', linkedin_url:'
 const blankCareer:CareerEditor = { title:'', department:'', location:'Waigani Heights, Port Moresby', employment_type:'Full-time', summary:'', description:'', application_email:'enquiries@waiganichristiancollege.edu.pg', application_url:null, closing_date:'', published:true }
 
 export default function Admin() {
-  const setupMode = window.location.pathname === '/admin/setup'
+  const [setupMode,setSetupMode] = useState(window.location.pathname === '/admin/setup')
+  const recoveryMode = window.location.pathname === '/admin/forgot-password'
+  const [canSetPassword,setCanSetPassword] = useState(false)
   const [authenticated,setAuthenticated] = useState(false)
   const [loading,setLoading] = useState(true)
   const [section,setSection] = useState<'overview'|'posts'|'enquiries'|'staff'|'careers'>('overview')
@@ -54,26 +56,44 @@ export default function Admin() {
   useEffect(() => {
     if (setupMode) {
       completeAuthRedirect().then(session => {
-        if (!session) setNotice('This invitation link is invalid or has expired. Ask the administrator to resend it.')
-      }).catch(error => setNotice(error instanceof Error ? error.message : 'Unable to open this invitation.')).finally(() => setLoading(false))
+        setCanSetPassword(Boolean(session))
+        if (!session) setNotice('This link is invalid or has expired. Request a new password reset link.')
+      }).catch(error => setNotice(error instanceof Error ? error.message : 'Unable to open this link.')).finally(() => setLoading(false))
       return
     }
+    if (recoveryMode) { setLoading(false); return }
     api('/api/admin/me').then(() => {
       setAuthenticated(true)
       return loadData().catch(error => setNotice(error instanceof Error ? error.message : 'Database unavailable'))
     }).catch(() => undefined).finally(() => setLoading(false))
-  },[loadData,setupMode])
+  },[loadData,setupMode,recoveryMode])
+
+  async function requestPasswordReset(event:FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setNotice(''); setSaving(true)
+    const data = new FormData(event.currentTarget)
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(String(data.get('email') || '').trim(), {
+        redirectTo: new URL('/admin/setup', window.location.origin).href,
+      })
+      if (error) throw error
+      setNotice('If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.')
+    } catch(error) { setNotice(error instanceof Error ? error.message : 'Unable to send reset email. Try again.') }
+    finally { setSaving(false) }
+  }
 
   async function setPassword(event:FormEvent<HTMLFormElement>) {
     event.preventDefault(); setNotice(''); setSaving(true)
     const data = new FormData(event.currentTarget)
     const password = String(data.get('password') || '')
     const confirmation = String(data.get('confirmation') || '')
+    if (!canSetPassword) { setNotice('Request a new password reset link first.'); setSaving(false); return }
+    if (password.length < 8) { setNotice('Use at least 8 characters.'); setSaving(false); return }
     if (password !== confirmation) { setNotice('Passwords do not match.'); setSaving(false); return }
     try {
       const { error } = await supabase.auth.updateUser({ password })
       if (error) throw error
       window.history.replaceState({}, '', '/admin')
+      setSetupMode(false)
       setAuthenticated(true)
       await loadData()
     } catch(error) { setNotice(error instanceof Error ? error.message : 'Unable to set password') }
@@ -165,8 +185,9 @@ export default function Admin() {
   const counts = useMemo(() => ({published:posts.filter(p=>p.published).length,promoted:posts.filter(p=>p.promoted).length,newEnquiries:enquiries.filter(e=>e.status==='new').length,openCareers:careers.filter(c=>c.published).length}),[posts,enquiries,careers])
 
   if (loading) return <div className="admin-loading">Loading admin portal…</div>
-  if (setupMode) return <main className="admin-login"><form onSubmit={setPassword}><img src={schoolLogo} alt="Waigani Christian College crest"/><p>Secure administration</p><h1>Set your password.</h1><label>New password<input name="password" type="password" minLength={8} required autoFocus /></label><label>Confirm password<input name="confirmation" type="password" minLength={8} required /></label>{notice&&<div className="admin-error">{notice}</div>}<button disabled={saving}>{saving?'Saving…':'Set password →'}</button><a href="/admin">Return to sign in</a></form></main>
-  if (!authenticated) return <main className="admin-login"><form onSubmit={login}><img src={schoolLogo} alt="Waigani Christian College crest"/><p>Secure administration</p><h1>Welcome back.</h1><label>Email address<input name="username" type="email" autoComplete="email" required autoFocus /></label><label>Password<input name="password" type="password" autoComplete="current-password" required /></label>{notice&&<div className="admin-error">{notice}</div>}<button>Sign in →</button><a href="/">← Return to website</a></form></main>
+  if (recoveryMode) return <main className="admin-login"><form onSubmit={requestPasswordReset}><img src={schoolLogo} alt="Waigani Christian College crest"/><p>Secure administration</p><h1>Reset password.</h1><label>Email address<input name="email" type="email" defaultValue="masomanu23@gmail.com" autoComplete="email" required autoFocus /></label>{notice&&<div className="admin-notice" role="status">{notice}</div>}<button disabled={saving}>{saving?'Sending…':'Send reset link'}</button><a href="/admin">Return to sign in</a></form></main>
+  if (setupMode) return <main className="admin-login"><form onSubmit={setPassword}><img src={schoolLogo} alt="Waigani Christian College crest"/><p>Secure administration</p><h1>Set your password.</h1><label>New password<input name="password" type="password" minLength={8} autoComplete="new-password" required autoFocus /></label><label>Confirm password<input name="confirmation" type="password" minLength={8} autoComplete="new-password" required /></label>{notice&&<div className="admin-error">{notice}</div>}<button disabled={saving || !canSetPassword}>{saving?'Saving…':'Set password →'}</button><a href="/admin/forgot-password">Request a new reset link</a><a href="/admin">Return to sign in</a></form></main>
+  if (!authenticated) return <main className="admin-login"><form onSubmit={login}><img src={schoolLogo} alt="Waigani Christian College crest"/><p>Secure administration</p><h1>Welcome back.</h1><label>Email address<input name="username" type="email" defaultValue="masomanu23@gmail.com" autoComplete="email" required autoFocus /></label><label>Password<input name="password" type="password" autoComplete="current-password" required /></label>{notice&&<div className="admin-error">{notice}</div>}<button>Sign in →</button><a href="/admin/forgot-password">Forgot password?</a><a href="/">← Return to website</a></form></main>
 
   return <div className="admin-shell">
     <aside className="admin-sidebar"><a className="admin-brand" href="/"><img src={schoolLogo} alt="College crest"/><span>Waigani Christian</span></a><nav><button className={section==='overview'?'active':''} onClick={()=>setSection('overview')}>⌂ Overview</button><button className={section==='posts'?'active':''} onClick={()=>setSection('posts')}>✦ Content & posts</button><button className={section==='staff'?'active':''} onClick={()=>setSection('staff')}>♟ Staff profiles</button><button className={section==='careers'?'active':''} onClick={()=>setSection('careers')}>▣ Careers <b>{counts.openCareers}</b></button><button className={section==='enquiries'?'active':''} onClick={()=>setSection('enquiries')}>✉ Enquiries <b>{counts.newEnquiries}</b></button></nav><div className="admin-sidebar-bottom"><a href="/">View public website ↗</a><button onClick={()=>{void adminSignOut().finally(()=>location.reload())}}>Sign out</button></div></aside>

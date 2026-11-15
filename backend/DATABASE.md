@@ -144,10 +144,10 @@ comes from `vite_admin_policies.sql`: the four tables and the bucket have admin
 policies that allow everything to a signed-in user for whom
 `public.is_wcc_admin()` is true. That function is true when the signed-in
 Supabase Auth user was invited (`auth.users.invited_at` is set) or their email
-is `wccadmin@wcc.ac.pg`. Anyone else who signs in gets the same access as a
+is `masomanu23@gmail.com`. Anyone else who signs in gets the same access as a
 visitor.
 
-The admin dashboard only checks that someone is signed in. The database
+The admin dashboard checks the signed-in user with `is_wcc_admin()`. The database
 policies are what protect the data.
 
 ## Adding and removing administrators

@@ -45,9 +45,20 @@ In Supabase → Authentication:
 
   The default `{{ .ConfirmationURL }}` link sends people to the Site URL (the
   homepage) instead, where they cannot set a password.
-- Optional, Emails → Reset Password template: the same link with
-  `type=recovery` lets you send an administrator a password reset from
-  Authentication → Users.
+- Emails → Reset Password template: use the following link so recovery works
+  even when the email opens in another browser:
+
+  ```html
+  <a href="{{ .SiteURL }}/admin/setup?token_hash={{ .TokenHash }}&type=recovery">Reset your password</a>
+  ```
+
+The dashboard sign-in at `/admin` defaults to `masomanu23@gmail.com` and has a
+**Forgot password?** link at `/admin/forgot-password`. Recovery requires an
+existing Supabase Auth user; it does not create an account or grant permissions.
+Invite this address from Authentication → Users if it does not exist, and run
+`backend/supabase/vite_admin_policies.sql` to apply the updated administrator
+email. After opening the invitation or reset email, choose a password of at
+least eight characters at `/admin/setup`.
 
 How to invite administrators is described in `backend/DATABASE.md`.
 
