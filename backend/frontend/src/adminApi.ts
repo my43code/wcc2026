@@ -2,9 +2,10 @@ import { supabase } from './supabase'
 
 const mediaBucket = 'post-media'
 const allowedMedia = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'video/quicktime']
+const allowedDocuments = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
 
 /** Delete a row and, if it referenced an uploaded file, remove that file too. */
-async function deleteWithMedia(table:'posts'|'staff_profiles', pathColumn:'media_path'|'photo_path', id:string|undefined) {
+async function deleteWithMedia(table:'posts'|'staff_profiles'|'resources', pathColumn:'media_path'|'photo_path'|'file_path', id:string|undefined) {
   const { data } = await supabase.from(table).select(pathColumn).eq('id', id).maybeSingle()
   check(await supabase.from(table).delete().eq('id', id))
   const mediaPath = (data as Record<string, string|null> | null)?.[pathColumn]
@@ -104,6 +105,24 @@ export async function adminApi(path:string, options:RequestInit = {}) {
     if (method === 'POST') return check(await supabase.from('career_opportunities').insert(body).select().single())
     if (method === 'PUT') return check(await supabase.from('career_opportunities').update(body).eq('id', id).select().single())
     if (method === 'DELETE') { check(await supabase.from('career_opportunities').delete().eq('id', id)); return null }
+  }
+
+  if (url.pathname === '/api/resource-upload' && method === 'POST') {
+    const file = (options.body as FormData).get('file') as File | null
+    if (!file) throw new Error('Choose a file to upload')
+    if (![...allowedMedia.slice(0, 4), ...allowedDocuments].includes(file.type)) throw new Error('Unsupported file type. Use PDF, Word, Excel, JPG, PNG or WebP.')
+    if (file.size > 20 * 1024 * 1024) throw new Error('Files must be 20 MB or smaller.')
+    const extension = file.name.includes('.') ? `.${file.name.split('.').pop()!.toLowerCase()}` : ''
+    const filePath = `resources/${crypto.randomUUID().replaceAll('-', '')}${extension}`
+    check(await supabase.storage.from(mediaBucket).upload(filePath, file, { contentType:file.type, upsert:false }))
+    return { file_url:supabase.storage.from(mediaBucket).getPublicUrl(filePath).data.publicUrl, file_path:filePath, file_name:file.name, file_size:file.size }
+  }
+
+  if (url.pathname.startsWith('/api/resources')) {
+    if (method === 'GET') return check(await supabase.from('resources').select('*').order('category').order('sort_order').order('title'))
+    if (method === 'POST') return check(await supabase.from('resources').insert(body).select().single())
+    if (method === 'PUT') return check(await supabase.from('resources').update(body).eq('id', id).select().single())
+    if (method === 'DELETE') return deleteWithMedia('resources', 'file_path', id)
   }
 
   throw new Error(`Unsupported admin request: ${method} ${url.pathname}`)

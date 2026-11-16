@@ -30,6 +30,7 @@ const programs = [
 type SearchResult = { id:number|string; title:string; summary:string; category:string; event_date:string|null; promoted:boolean; href:string }
 type StaffProfile = { id:number; name:string; job_title:string; email:string; linkedin_url:string|null; photo_url:string|null }
 type CareerOpportunity = { id:number; title:string; department:string; location:string; employment_type:string; summary:string; description:string; application_email:string; application_url:string|null; closing_date:string|null }
+type Resource = { id:number; title:string; description:string; category:string; file_url:string; file_name:string; file_size:number }
 
 const heroSlides = [
   { image: campusImage, alt: 'Waigani Christian College students gathered on campus', position: '55% center' },
@@ -85,6 +86,7 @@ function App() {
   const [learningPagesError,setLearningPagesError] = useState(false)
   const [staff, setStaff] = useState<StaffProfile[]>([])
   const [careers, setCareers] = useState<CareerOpportunity[]>([])
+  const [resources, setResources] = useState<Resource[]>([])
   const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -174,6 +176,16 @@ function App() {
     }
     loadStaff().catch(() => setStaff([]))
   }, [isStaff])
+
+  useEffect(() => {
+    if (!isLearning) return
+    const loadResources = async () => {
+      const { data, error } = await supabase.from('resources').select('id,title,description,category,file_url,file_name,file_size').eq('published', true).order('category').order('sort_order').order('title')
+      if (error) throw error
+      setResources(data || [])
+    }
+    loadResources().catch(() => setResources([]))
+  }, [isLearning])
 
   useEffect(() => {
     if (!isCareers) return
@@ -337,7 +349,7 @@ function App() {
         </section>}
 
         {isLearning && <section className="page-hero">
-          <div className="page-hero-copy"><p className="eyebrow light">Learning at Waigani</p><h1>A pathway for<br /><em>every stage.</em></h1><p>Purposeful learning designed around the needs, strengths and potential of every student.</p></div>
+          <div className="page-hero-copy"><p className="eyebrow light">Learning at Waigani</p><h1>A pathway for<br /><em>every stage.</em></h1><p>Purposeful learning designed around the needs, strengths and potential of every student.</p>{resources.length > 0 && <a href="#forms-resources" className="text-link light" style={{marginTop:12,display:'inline-block'}}>Forms &amp; resources ↓</a>}</div>
           <div className="page-hero-image" style={{ backgroundImage: `url(${computerLabImage})` }} role="img" aria-label="Students learning in the Waigani Christian College computer laboratory" />
         </section>}
 
@@ -411,6 +423,19 @@ function App() {
         {(isSchool || isLearning) && <section className="campus-gallery section" aria-labelledby="campus-gallery-title">
           <div className="campus-gallery-heading"><div><p className="eyebrow">Inside Waigani</p><h2 id="campus-gallery-title">Places made for<br /><em>learning and belonging.</em></h2></div><p>From first discoveries to digital learning and safe transport, our campus supports every part of the student journey.</p></div>
           <div className="campus-gallery-grid"><figure className="gallery-campus"><img src={campusFacilitiesImage} alt="Waigani Christian College campus" loading="lazy" decoding="async"/><figcaption><span>Our campus</span><strong>A growing place to learn</strong></figcaption></figure><figure><img src={earlyChildrenImage} alt="Early learning students" loading="lazy" decoding="async"/><figcaption><span>Early learning</span><strong>Strong beginnings</strong></figcaption></figure><figure><img src={computerLabImage} alt="Students in the computer laboratory" loading="lazy" decoding="async"/><figcaption><span>Digital learning</span><strong>Skills for tomorrow</strong></figcaption></figure><figure><img src={libraryImage} alt="Students using the college library" loading="lazy" decoding="async"/><figcaption><span>Library</span><strong>Space to explore</strong></figcaption></figure><figure className="gallery-transport"><img src={busFleetImage} alt="Waigani Christian College school bus fleet" loading="lazy" decoding="async"/><figcaption><span>Student transport</span><strong>Connected to community</strong></figcaption></figure></div>
+        </section>}
+
+        {isLearning && resources.length > 0 && <section className="resources-section section" id="forms-resources">
+          <div className="resources-heading"><div><p className="eyebrow">Downloads</p><h2>Forms &amp;<br /><em>resources.</em></h2></div><p>Download school fee structures, application forms, policies and curriculum documents.</p></div>
+          <div className="resource-grid">{resources.map(resource => {
+            const categoryLabels:Record<string,string> = { fees:'School Fees', application:'Application Forms', policy:'Policies', curriculum:'Curriculum', general:'General' }
+            const ext = resource.file_name.split('.').pop()?.toUpperCase() || 'FILE'
+            return <a key={resource.id} className="resource-card" href={resource.file_url} target="_blank" rel="noreferrer">
+              <span className="resource-icon">{ext === 'PDF' ? '⬙' : ext === 'DOC' || ext === 'DOCX' ? '⬚' : ext === 'XLS' || ext === 'XLSX' ? '⬡' : '◈'}</span>
+              <div><small>{categoryLabels[resource.category] || 'General'}</small><strong>{resource.title}</strong>{resource.description && <span>{resource.description}</span>}</div>
+              <span className="resource-meta">{ext} · {resource.file_size >= 1048576 ? `${(resource.file_size/1048576).toFixed(1)} MB` : `${Math.round(resource.file_size/1024)} KB`}</span>
+            </a>
+          })}</div>
         </section>}
 
         {(pageClass === 'home' || isSchool) && <section className="values-section" id="values">

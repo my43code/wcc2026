@@ -67,3 +67,8 @@ with check (bucket_id = 'post-media' and (select public.is_wcc_admin()));
 drop policy if exists "Admin deletes post media" on storage.objects;
 create policy "Admin deletes post media" on storage.objects for delete to authenticated
 using (bucket_id = 'post-media' and (select public.is_wcc_admin()));
+
+-- Resources table: admin full access
+drop policy if exists "Admin manages resources" on public.resources;
+create policy "Admin manages resources" on public.resources for all to authenticated
+using ((select public.is_wcc_admin())) with check ((select public.is_wcc_admin()));
