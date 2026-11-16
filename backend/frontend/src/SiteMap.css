@@ -1,0 +1,39 @@
+.site-map-heading { padding-top:80px; padding-bottom:65px; background:#f3f4f6; border-bottom:10px solid var(--blue); }
+.site-map-heading .eyebrow { color:var(--blue); }
+.site-map-heading h1 { margin:0; font:clamp(54px,6.6vw,92px)/.98 'Libre Caslon Display'; letter-spacing:-.035em; }
+.site-map-heading h1 em { color:var(--red); font-weight:400; }
+.site-map-heading>p:last-child { max-width:560px; color:#526368; font-size:17px; line-height:1.8; margin:26px 0 0; }
+.site-map-tree { padding-top:65px; padding-bottom:100px; }
+.site-map-root { display:flex; align-items:center; gap:22px; width:max-content; max-width:100%; margin:0 auto; padding:28px 32px; color:white; background:#080808; border-top:7px solid var(--red); text-decoration:none; box-shadow:9px 9px 0 var(--gold); }
+.site-map-home-icon { color:var(--gold); font-size:42px; }
+.site-map-root small,.site-map-root strong,.site-map-root em { display:block; }
+.site-map-root small { color:var(--gold); text-transform:uppercase; letter-spacing:.14em; font-size:9px; font-weight:800; }
+.site-map-root strong { margin:8px 0; font:30px/1.15 'Libre Caslon Display'; }
+.site-map-root em { color:#d4dbdd; font-style:normal; font-size:12px; }
+.site-map-root>b { margin-left:10px; font-size:22px; }
+.site-map-branches { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:26px; position:relative; padding-top:65px; }
+.site-map-branches::before { content:''; position:absolute; width:2px; height:35px; left:50%; top:0; background:#c6cdd1; }
+.site-map-branches::after { content:''; position:absolute; top:35px; left:calc(16.666% - 9px); right:calc(16.666% - 9px); height:2px; background:#c6cdd1; }
+.site-map-branch { position:relative; min-width:0; padding:28px; background:#f5f6f8; border-top:7px solid var(--red); }
+.site-map-branch::before { content:''; position:absolute; top:-32px; left:50%; width:2px; height:25px; background:#c6cdd1; }
+.site-map-learning { border-top-color:var(--blue); }
+.site-map-documents { border-top-color:var(--gold); }
+.site-map-branch-heading { display:flex; align-items:flex-start; gap:13px; padding-bottom:25px; border-bottom:1px solid #d8dfe2; }
+.site-map-branch-heading>span { padding-top:8px; color:var(--red); font-size:10px; font-weight:800; }
+.site-map-learning .site-map-branch-heading>span { color:var(--blue); }
+.site-map-tree .site-map-branch-heading h2 { font-size:clamp(28px,2.7vw,38px); line-height:1.1; margin:0; }
+.site-map-branch nav>ul { list-style:none; margin:0; padding:0; }
+.site-map-branch nav>ul>li { margin:0; padding:0; border-bottom:1px solid #dde2e5; }
+.site-map-branch a { text-decoration:none; }
+.site-map-branch nav a { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:17px 0; font-size:13px; font-weight:650; line-height:1.6; }
+.site-map-branch nav a:hover,.site-map-branch nav a:focus-visible { color:var(--red); text-decoration:underline; text-underline-offset:4px; }
+.site-map-branch nav>ul>li>ul { margin:0 0 14px 5px; padding:0 0 0 17px; border-left:2px solid #cbd4da; list-style:none; }
+.site-map-branch nav>ul>li>ul a { padding:9px 0; color:#526368; font-size:12px; font-weight:500; }
+.site-map-group-label { display:block; padding:17px 0 10px; font-size:13px; }
+.site-map-status { color:#526368; font-size:13px; line-height:1.8; margin:24px 0; }
+.site-map-help { margin-top:28px; padding:20px; background:white; border-left:4px solid var(--blue); }
+.site-map-help p { margin:0 0 12px; color:#526368; font-size:13px; line-height:1.6; }
+.site-map-help a { font-size:12px; font-weight:750; text-decoration:underline; text-underline-offset:4px; }
+@media(max-width:1000px) { .site-map-branches { gap:16px; }.site-map-branch { padding:22px; }.site-map-branch-heading { gap:9px; } }
+@media(max-width:850px) { .site-map-branches { grid-template-columns:1fr; gap:30px; padding-top:35px; }.site-map-branches::after { display:none; }.site-map-branch::before { top:-37px; height:30px; }.site-map-root { width:100%; }.site-map-branch-heading h2 { font-size:36px; } }
+@media(max-width:520px) { .site-map-heading { padding-top:60px; padding-bottom:50px; }.site-map-heading h1 { font-size:56px; }.site-map-root { gap:16px; padding:24px 20px; }.site-map-root strong { font-size:26px; }.site-map-root>b { margin-left:0; }.site-map-branch { padding:24px; }.site-map-tree { padding-top:40px; } }

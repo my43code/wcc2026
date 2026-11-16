@@ -1,15 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://www.waiganichristiancollege.edu.pg/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://www.waiganichristiancollege.edu.pg/about-us</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://www.waiganichristiancollege.edu.pg/our-school</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://www.waiganichristiancollege.edu.pg/learning</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://www.waiganichristiancollege.edu.pg/learning/early-learning</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://www.waiganichristiancollege.edu.pg/learning/primary-school</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://www.waiganichristiancollege.edu.pg/learning/secondary-school</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://www.waiganichristiancollege.edu.pg/learning/fode</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://www.waiganichristiancollege.edu.pg/student-life</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://www.waiganichristiancollege.edu.pg/news-events</loc><changefreq>daily</changefreq><priority>0.8</priority></url>
-  <url><loc>https://www.waiganichristiancollege.edu.pg/administration-staff</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://www.waiganichristiancollege.edu.pg/career-opportunities</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/</loc></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/about-us</loc></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/our-school</loc></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/learning</loc></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/student-life</loc></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/news-events</loc></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/administration-staff</loc></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/career-opportunities</loc></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/forms-resources</loc></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/sitemap</loc></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/learning/early-learning</loc><lastmod>2026-11-15</lastmod></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/learning/primary-school</loc><lastmod>2026-11-15</lastmod></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/learning/secondary-school</loc><lastmod>2026-11-15</lastmod></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/learning/fode</loc><lastmod>2026-11-15</lastmod></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/learning/fode/grade-10-upgrading</loc><lastmod>2026-11-15</lastmod></url>
+  <url><loc>https://waiganichristiancollege.edu.pg/learning/fode/grade-12-upgrading</loc><lastmod>2026-11-15</lastmod></url>
 </urlset>

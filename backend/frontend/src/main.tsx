@@ -1,8 +1,8 @@
-import { StrictMode } from 'react'
+import { lazy, StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import Admin from './Admin.tsx'
+const Admin = lazy(()=>import('./Admin.tsx'))
 
 // Supabase auth email links (invite, recovery, error) may land on the root URL.
 // Forward them to /admin/setup so the Admin component handles the token exchange.
@@ -15,6 +15,6 @@ const isAdmin = window.location.pathname === '/admin' || window.location.pathnam
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {isAdmin ? <Admin /> : <App />}
+    {isAdmin ? <Suspense fallback={<main role="status" style={{padding:32}}>Loading admin portal…</main>}><Admin /></Suspense> : <App />}
   </StrictMode>,
 )

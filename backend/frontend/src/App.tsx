@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 import { supabase } from './supabase'
 import LearningPageView from './LearningPage'
 import NewsCarousel, { NewsCard } from './NewsCarousel'
+import FormsResources, { FormsResourcesAccess } from './FormsResources'
+import SiteMap from './SiteMap'
+import { loadPublicResources } from './resources'
+import type { Resource } from './resources'
 import type { NewsItem } from './news'
 import type { LearningPage } from './learning'
 import { learningPageHref } from './learning'
@@ -30,8 +34,6 @@ const programs = [
 type SearchResult = { id:number|string; title:string; summary:string; category:string; event_date:string|null; promoted:boolean; href:string }
 type StaffProfile = { id:number; name:string; job_title:string; email:string; linkedin_url:string|null; photo_url:string|null }
 type CareerOpportunity = { id:number; title:string; department:string; location:string; employment_type:string; summary:string; description:string; application_email:string; application_url:string|null; closing_date:string|null }
-type Resource = { id:number; title:string; description:string; category:string; file_url:string; file_name:string; file_size:number }
-
 const heroSlides = [
   { image: campusImage, alt: 'Waigani Christian College students gathered on campus', position: '55% center' },
   { image: facilitiesImage, alt: 'Learning facilities at Waigani Christian College', position: 'center' },
@@ -63,7 +65,7 @@ function Arrow() { return <span aria-hidden="true">↗</span> }
 
 function App() {
   const page = window.location.pathname.replace(/\/+$/, '') || '/'
-  const knownPages = new Set(['/our-school', '/about-us', '/learning', '/student-life', '/news-events', '/administration-staff', '/career-opportunities'])
+  const knownPages = new Set(['/our-school', '/about-us', '/learning', '/student-life', '/news-events', '/administration-staff', '/career-opportunities', '/forms-resources', '/sitemap'])
   const isLearningDetail = page.startsWith('/learning/')
   const pageClass = isLearningDetail ? 'learning-detail' : knownPages.has(page) ? page.slice(1) : 'home'
   const isSchool = page === '/our-school'
@@ -73,6 +75,8 @@ function App() {
   const isStaff = page === '/administration-staff'
   const isAbout = page === '/about-us'
   const isCareers = page === '/career-opportunities'
+  const isFormsResources = page === '/forms-resources'
+  const isSiteMap = page === '/sitemap'
   const [menuOpen, setMenuOpen] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [sent, setSent] = useState(false)
@@ -87,6 +91,8 @@ function App() {
   const [staff, setStaff] = useState<StaffProfile[]>([])
   const [careers, setCareers] = useState<CareerOpportunity[]>([])
   const [resources, setResources] = useState<Resource[]>([])
+  const [resourcesLoading,setResourcesLoading] = useState(true)
+  const [resourcesError,setResourcesError] = useState('')
   const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -154,6 +160,8 @@ function App() {
       '/administration-staff': 'Administration & Staff | Waigani Christian College',
       '/about-us': 'About Us | Waigani Christian College',
       '/career-opportunities': 'Career Opportunities | Waigani Christian College',
+      '/forms-resources': 'Forms & Resources | Waigani Christian College',
+      '/sitemap': 'Site Map | Waigani Christian College',
     }
     document.title = isLearningDetail ? `${learningPage?.title || 'Learning'} | Waigani Christian College` : titles[page] || titles['/']
   }, [page,isLearningDetail,learningPage?.title])
@@ -177,15 +185,14 @@ function App() {
     loadStaff().catch(() => setStaff([]))
   }, [isStaff])
 
-  useEffect(() => {
-    if (!isLearning) return
-    const loadResources = async () => {
-      const { data, error } = await supabase.from('resources').select('id,title,description,category,file_url,file_name,file_size').eq('published', true).order('category').order('sort_order').order('title')
-      if (error) throw error
-      setResources(data || [])
-    }
-    loadResources().catch(() => setResources([]))
-  }, [isLearning])
+  const loadResources = useCallback(async () => {
+    setResourcesLoading(true); setResourcesError('')
+    try { setResources(await loadPublicResources()) }
+    catch { setResourcesError('Documents could not be loaded. Please try again shortly.') }
+    finally { setResourcesLoading(false) }
+  },[])
+
+  useEffect(()=>{void loadResources()},[loadResources])
 
   useEffect(() => {
     if (!isCareers) return
@@ -248,7 +255,8 @@ function App() {
     setSearching(true)
     const terms = query.toLocaleLowerCase().split(/\s+/).filter(Boolean)
     const learningResults:SearchResult[] = learningPages.filter(item=>terms.every(term=>`${item.title} ${item.summary} ${item.body}`.toLocaleLowerCase().includes(term))).map(item=>({id:`learning-${item.id}`,title:item.title,summary:item.summary,category:'learning',event_date:null,promoted:false,href:learningPageHref(item)}))
-    const websiteResults = [...learningResults,...searchWebsiteSections(query)]
+    const resourceResults:SearchResult[] = resources.filter(resource=>terms.every(term=>`${resource.title} ${resource.description} ${resource.file_name}`.toLocaleLowerCase().includes(term))).map(resource=>({id:`resource-${resource.id}`,title:resource.title,summary:resource.description || resource.file_name,category:'document',event_date:null,promoted:false,href:`/forms-resources?q=${encodeURIComponent(resource.title)}`}))
+    const websiteResults = [...learningResults,...resourceResults,...searchWebsiteSections(query)]
     try {
       const { data, error } = await supabase.rpc('search_published_posts', { search_term:query })
       if (error) throw error
@@ -310,11 +318,11 @@ function App() {
               <a href="/about-us#vision" onClick={closeMenu}>Vision</a>
               <a href="/about-us#mission" onClick={closeMenu}>Mission</a>
               <a href="/administration-staff" onClick={closeMenu}>Administration & staff</a>
-              <a href="/career-opportunities" onClick={closeMenu}>Career opportunities</a>
+              <a href="/career-opportunities" onClick={closeMenu}>Career opportunities</a><a href="/sitemap" onClick={closeMenu}>Site map</a>
             </div>
           </div>
           <a href="/our-school" onClick={closeMenu} aria-current={isSchool ? 'page' : undefined}>Our school</a>
-          <div className="nav-dropdown learning-nav-dropdown"><a href="/learning" onClick={closeMenu} aria-current={isLearning || isLearningDetail ? 'page' : undefined}>Learning <span aria-hidden="true">⌄</span></a><div className="nav-dropdown-menu">{programs.map(program=><a key={program.slug} href={learningPageHref(program.slug)} onClick={closeMenu}>{program.title}{program.slug==='fode'?' · Grade 10 & 12':''}</a>)}</div></div>
+          <div className="nav-dropdown learning-nav-dropdown"><a href="/learning" onClick={closeMenu} aria-current={isLearning || isLearningDetail ? 'page' : undefined}>Learning <span aria-hidden="true">⌄</span></a><div className="nav-dropdown-menu">{programs.map(program=><a key={program.slug} href={learningPageHref(program.slug)} onClick={closeMenu}>{program.title}{program.slug==='fode'?' · Grade 10 & 12':''}</a>)}<a href="/forms-resources" onClick={closeMenu} aria-current={isFormsResources?'page':undefined}>Forms &amp; resources</a></div></div>
           <a href="/student-life" onClick={closeMenu} aria-current={isLife ? 'page' : undefined}>Student life</a>
           <a href="/news-events" onClick={closeMenu} aria-current={isNews ? 'page' : undefined}>News & events</a>
           <button className="search-button" onClick={() => { setSearchOpen(true); closeMenu() }} aria-label="Search website">⌕ <span>Search</span></button>
@@ -323,7 +331,10 @@ function App() {
       </header>
 
       <main>
+        {isFormsResources && <FormsResources resources={resources} loading={resourcesLoading} error={resourcesError} onRetry={()=>void loadResources()} onEnquire={()=>setFormOpen(true)}/>}
+        {isSiteMap && <SiteMap pages={learningPages} loading={learningPagesLoading} error={learningPagesError}/>}
         {isLearningDetail && <LearningPageView page={learningPage} pages={learningPages} loading={learningPagesLoading} error={learningPagesError} image={learningImageForPage.src} imageAlt={learningImageForPage.alt} stories={learningStories} postsLoading={postsLoading} postsError={postsError} onEnquire={()=>setFormOpen(true)} onRead={setSelectedNews} onShare={setShareTarget}/>}
+        {isLearningDetail && <FormsResourcesAccess resources={resources} loading={resourcesLoading} error={resourcesError} compact/>}
         {(pageClass === 'home' || isSchool) && <section className="hero-section" id="home">
           <div className="hero-content">
             <p className="eyebrow light">Welcome to Waigani Christian College</p>
@@ -349,7 +360,7 @@ function App() {
         </section>}
 
         {isLearning && <section className="page-hero">
-          <div className="page-hero-copy"><p className="eyebrow light">Learning at Waigani</p><h1>A pathway for<br /><em>every stage.</em></h1><p>Purposeful learning designed around the needs, strengths and potential of every student.</p>{resources.length > 0 && <a href="#forms-resources" className="text-link light" style={{marginTop:12,display:'inline-block'}}>Forms &amp; resources ↓</a>}</div>
+          <div className="page-hero-copy"><p className="eyebrow light">Learning at Waigani</p><h1>A pathway for<br /><em>every stage.</em></h1><p>Purposeful learning designed around the needs, strengths and potential of every student.</p><a href="/forms-resources" className="text-link light" style={{marginTop:12,display:'inline-block'}}>Forms &amp; resources ↗</a></div>
           <div className="page-hero-image" style={{ backgroundImage: `url(${computerLabImage})` }} role="img" aria-label="Students learning in the Waigani Christian College computer laboratory" />
         </section>}
 
@@ -425,18 +436,7 @@ function App() {
           <div className="campus-gallery-grid"><figure className="gallery-campus"><img src={campusFacilitiesImage} alt="Waigani Christian College campus" loading="lazy" decoding="async"/><figcaption><span>Our campus</span><strong>A growing place to learn</strong></figcaption></figure><figure><img src={earlyChildrenImage} alt="Early learning students" loading="lazy" decoding="async"/><figcaption><span>Early learning</span><strong>Strong beginnings</strong></figcaption></figure><figure><img src={computerLabImage} alt="Students in the computer laboratory" loading="lazy" decoding="async"/><figcaption><span>Digital learning</span><strong>Skills for tomorrow</strong></figcaption></figure><figure><img src={libraryImage} alt="Students using the college library" loading="lazy" decoding="async"/><figcaption><span>Library</span><strong>Space to explore</strong></figcaption></figure><figure className="gallery-transport"><img src={busFleetImage} alt="Waigani Christian College school bus fleet" loading="lazy" decoding="async"/><figcaption><span>Student transport</span><strong>Connected to community</strong></figcaption></figure></div>
         </section>}
 
-        {isLearning && resources.length > 0 && <section className="resources-section section" id="forms-resources">
-          <div className="resources-heading"><div><p className="eyebrow">Downloads</p><h2>Forms &amp;<br /><em>resources.</em></h2></div><p>Download school fee structures, application forms, policies and curriculum documents.</p></div>
-          <div className="resource-grid">{resources.map(resource => {
-            const categoryLabels:Record<string,string> = { fees:'School Fees', application:'Application Forms', policy:'Policies', curriculum:'Curriculum', general:'General' }
-            const ext = resource.file_name.split('.').pop()?.toUpperCase() || 'FILE'
-            return <a key={resource.id} className="resource-card" href={resource.file_url} target="_blank" rel="noreferrer">
-              <span className="resource-icon">{ext === 'PDF' ? '⬙' : ext === 'DOC' || ext === 'DOCX' ? '⬚' : ext === 'XLS' || ext === 'XLSX' ? '⬡' : '◈'}</span>
-              <div><small>{categoryLabels[resource.category] || 'General'}</small><strong>{resource.title}</strong>{resource.description && <span>{resource.description}</span>}</div>
-              <span className="resource-meta">{ext} · {resource.file_size >= 1048576 ? `${(resource.file_size/1048576).toFixed(1)} MB` : `${Math.round(resource.file_size/1024)} KB`}</span>
-            </a>
-          })}</div>
-        </section>}
+        {(pageClass === 'home' || isLearning) && <FormsResourcesAccess resources={resources} loading={resourcesLoading} error={resourcesError}/>}
 
         {(pageClass === 'home' || isSchool) && <section className="values-section" id="values">
           <div className="values-visual photo-values" style={{ backgroundImage: `url(${learningImage})` }}>
@@ -493,7 +493,7 @@ function App() {
             <blockquote className="footer-scripture"><p>Train up a child in the way he should go, and when he is old, he shall not depart from it.</p><cite>Proverbs 22:6</cite></blockquote>
           </div>
           <div className="footer-explore"><h4>Explore</h4><a href="/about-us">About us</a><a href="/our-school">Our school</a><a href="/learning">Learning</a><a href="/student-life">Student life</a><a href="/news-events">News & events</a></div>
-          <div className="footer-sitemap"><h4>Quick links</h4><a href="/learning/early-learning">Early Learning</a><a href="/learning/primary-school">Primary School</a><a href="/learning/secondary-school">Secondary School</a><a href="/learning/fode">FODE</a><a href="/administration-staff">Staff</a><a href="/career-opportunities">Careers</a></div>
+          <div className="footer-sitemap"><h4>Quick links</h4><a href="/learning/early-learning">Early Learning</a><a href="/learning/primary-school">Primary School</a><a href="/learning/secondary-school">Secondary School</a><a href="/learning/fode">FODE</a><a href="/administration-staff">Staff</a><a href="/career-opportunities">Careers</a><a href="/forms-resources">Forms &amp; resources</a><a href="/sitemap">Site map</a></div>
           <div className="footer-visit"><h4>Find our campus</h4><div className="footer-map-frame"><iframe className="footer-map" title="Google Map showing Waigani Christian College" src="https://www.google.com/maps?q=Waigani+Christian+College,+Waigani+Heights,+Port+Moresby,+Papua+New+Guinea&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen></iframe></div><div className="footer-contact"><p>Waigani Heights<br />Port Moresby, Papua New Guinea</p><span><a className="map-link" href="https://www.google.com/maps/search/?api=1&query=Waigani+Christian+College+Waigani+Heights+Port+Moresby+Papua+New+Guinea" target="_blank" rel="noreferrer">Open in Google Maps ↗</a><a href="mailto:enquiries@waiganichristiancollege.edu.pg">enquiries@<wbr />waiganichristiancollege.edu.pg</a><a href="tel:+67572714798">72714798</a></span></div></div>
         </div>
         <div className="footer-bottom"><span>© 2026 Waigani Christian College. All rights reserved.</span><span className="footer-utility">Privacy · Policies <a href="/admin">Admin login →</a></span></div>

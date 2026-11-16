@@ -18,6 +18,8 @@ run again and preserve existing learning-page edits.
    `is_wcc_admin()` check and the administrator policies.
 3. [`supabase/learning_pages.sql`](supabase/learning_pages.sql): managed learning
    pages, the FODE post category, page targeting and initial page content.
+4. [`supabase/resources.sql`](supabase/resources.sql): private document storage,
+   document publishing, download permissions and file metadata.
 
 Then apply the one-time Supabase Auth settings in
 [`HOSTINGER.md`](../HOSTINGER.md#supabase-settings-one-time), so that invitation
@@ -127,6 +129,29 @@ Vacancies on the Career opportunities page.
 | `created_at` | timestamptz | Default `now()` |
 | `updated_at` | timestamptz | Default `now()`, updated by trigger |
 
+### `resources`
+
+School fee structures, application forms, policies, curriculum documents and
+other downloads. Admins manage the title, description, category, file, display
+order and publication state in **Forms & Resources**. New resources are drafts
+by default. Only published rows appear at `/forms-resources` and in site search.
+
+The `file_bucket` and `file_path` identify the upload; `file_name` and `file_size`
+describe it. New uploads use `school-resources`; `file_url` may be empty. Legacy
+`post-media` records remain supported. Replacing a file saves the new document
+before removing the old unused file. Deleting a resource removes its listing
+and attempts to clean up its unused file without affecting other resources.
+
+## File storage: documents
+
+The private `school-resources` bucket accepts PDF, Word, Excel, JPEG, PNG and
+WebP files up to 20 MB. Admins can upload and preview drafts. Visitors can
+obtain a 60-second signed download link only for a published resource. An
+already issued link remains usable until it expires after unpublishing.
+
+`supabase/verify_resources.sql` checks admin editing, draft privacy and
+publishing behavior with temporary data that is rolled back.
+
 ## File storage: the `post-media` bucket
 
 - Public bucket: anyone who has a file's URL can view it.
@@ -155,12 +180,13 @@ The public site search calls this function with `supabase.rpc`.
 
 ## Who can do what
 
-RLS is enabled on all five tables.
+RLS is enabled on all six tables.
 
 | | Visitors | Administrators |
 | --- | --- | --- |
 | `posts`, `staff_profiles`, `career_opportunities` | Read rows where `published` is true | Everything: read, add, edit and delete any row |
 | `learning_pages` | Read published pages | Manage pages; pathway overview addresses are protected |
+| `resources` | Read published resources and request their downloads | Upload, preview, publish, edit and delete resources |
 | `enquiries` | Add an enquiry with status `new`. Cannot read, edit or delete enquiries | Everything |
 | Files in `post-media` | View them through their public URLs | List, upload, update and delete |
 | `search_published_posts` | Call it | Call it |

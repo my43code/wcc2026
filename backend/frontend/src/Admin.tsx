@@ -6,6 +6,8 @@ import { adminApi as api, adminSignOut } from './adminApi'
 import { completeAuthRedirect, supabase } from './supabase'
 import { learningCategories, learningPageHref, learningRoots, postCategories as categories } from './learning'
 import type { LearningCategory, LearningPage, PostCategory as Category } from './learning'
+import { formatResourceSize as resourceSizeLabel, getResourceDownloadUrl, resourceCategories, validateResourceFile } from './resources'
+import type { Resource, ResourceEditor } from './resources'
 
 type MediaFields = { media_url:string|null; media_type:'image'|'video'|null; media_path:string|null }
 type Post = { id:number; title:string; summary:string; body:string; category:Category; learning_page_id:number|null; event_date:string|null; published:boolean; promoted:boolean; created_at:string } & MediaFields
@@ -15,16 +17,18 @@ type Staff = { id:number; name:string; job_title:string; email:string; linkedin_
 type StaffEditor = Omit<Staff,'id'>
 type Career = { id:number; title:string; department:string; location:string; employment_type:'Full-time'|'Part-time'|'Contract'|'Casual'|'Internship'; summary:string; description:string; application_email:string; application_url:string|null; closing_date:string|null; published:boolean }
 type CareerEditor = Omit<Career,'id'|'closing_date'> & { closing_date:string }
-type Resource = { id:number; title:string; description:string; category:'fees'|'application'|'policy'|'curriculum'|'general'; file_url:string; file_path:string; file_name:string; file_size:number; sort_order:number; published:boolean }
-type ResourceEditor = Omit<Resource,'id'>
 type LearningPageEditor = Omit<LearningPage,'id'|'created_at'|'updated_at'>
+type ResourceFileFields = Pick<ResourceEditor,'file_url'|'file_bucket'|'file_path'|'file_name'|'file_size'>
 
 const blankPost:PostEditor = { title:'', summary:'', body:'', category:'news_events', learning_page_id:null, event_date:'', published:true, promoted:false, media_url:null, media_type:null, media_path:null }
 const blankStaff:StaffEditor = { name:'', job_title:'', email:'', linkedin_url:'', photo_url:null, photo_path:null, sort_order:0, published:true }
 const blankCareer:CareerEditor = { title:'', department:'', location:'Waigani Heights, Port Moresby', employment_type:'Full-time', summary:'', description:'', application_email:'enquiries@waiganichristiancollege.edu.pg', application_url:null, closing_date:'', published:true }
-const blankResource:ResourceEditor = { title:'', description:'', category:'general', file_url:'', file_path:'', file_name:'', file_size:0, sort_order:0, published:true }
-const resourceCategories:Record<Resource['category'],string> = { fees:'School Fees', application:'Application Forms', policy:'Policies', curriculum:'Curriculum', general:'General' }
+const blankResource:ResourceEditor = { title:'', description:'', category:'general', file_url:'', file_bucket:'school-resources', file_path:'', file_name:'', file_size:0, sort_order:0, published:false }
 const blankLearningPage:LearningPageEditor = { title:'', slug:'fode/new-page', category:'fode', eyebrow:'', summary:'', body:'', published:false, sort_order:0 }
+
+function resourceEditorFields(resource:ResourceEditor):ResourceEditor {
+  return {title:resource.title,description:resource.description,category:resource.category,file_url:resource.file_url,file_bucket:resource.file_bucket,file_path:resource.file_path,file_name:resource.file_name,file_size:resource.file_size,sort_order:resource.sort_order,published:resource.published}
+}
 
 export default function Admin() {
   const [setupMode,setSetupMode] = useState(window.location.pathname === '/admin/setup')
@@ -47,6 +51,14 @@ export default function Admin() {
   const [careerEditor,setCareerEditor] = useState<CareerEditor>(blankCareer)
   const [editingCareerId,setEditingCareerId] = useState<number|null>(null)
   const [resources,setResources] = useState<Resource[]>([])
+  const [resourcesLoading,setResourcesLoading] = useState(true)
+  const [resourcesError,setResourcesError] = useState('')
+  const [resourceActionId,setResourceActionId] = useState<number|null>(null)
+  const [resourceViewingId,setResourceViewingId] = useState<number|null>(null)
+  const [resourceEditorError,setResourceEditorError] = useState('')
+  const [resourceActionError,setResourceActionError] = useState('')
+  const [resourceReadyLink,setResourceReadyLink] = useState<{id:number;url:string}|null>(null)
+  const [resourceFileInputKey,setResourceFileInputKey] = useState(0)
   const [resourceEditor,setResourceEditor] = useState<ResourceEditor>(blankResource)
   const [editingResourceId,setEditingResourceId] = useState<number|null>(null)
   const [resourceFile,setResourceFile] = useState<File|null>(null)
@@ -59,14 +71,20 @@ export default function Admin() {
   const [mediaFile,setMediaFile] = useState<File|null>(null)
   const [saving,setSaving] = useState(false)
 
+  const loadResources = useCallback(async () => {
+    setResourcesLoading(true); setResourcesError('')
+    try { setResources(await api('/api/resources')) }
+    catch(error) { setResourcesError(error instanceof Error ? error.message : 'Unable to load the document library. Please try again.') }
+    finally { setResourcesLoading(false) }
+  },[])
+
   const loadData = useCallback(async () => {
     const [postData,enquiryData,staffData,pageData] = await Promise.all([api('/api/posts?admin=true'),api('/api/enquiries'),api('/api/staff?admin=true'),api('/api/learning-pages')])
     setPosts(postData); setEnquiries(enquiryData); setStaff(staffData); setLearningPages(pageData)
     try { setCareers(await api('/api/careers?admin=true')) }
     catch(error) { setCareers([]); setNotice(error instanceof Error ? error.message : 'Careers database setup is pending.') }
-    try { setResources(await api('/api/resources')) }
-    catch { setResources([]) }
-  },[])
+    await loadResources()
+  },[loadResources])
 
   useEffect(() => {
     if (setupMode) {
@@ -197,23 +215,88 @@ export default function Admin() {
   async function removeCareer(role:Career) { if (!window.confirm(`Delete “${role.title}”?`)) return; await attempt(() => api(`/api/careers/${role.id}`,{method:'DELETE'}), 'Career opportunity deleted.', 'Unable to delete career opportunity') }
   function startNewCareer() { setSection('careers'); setCareerEditor({...blankCareer}); setEditingCareerId(null); setNotice(''); window.scrollTo({top:0,behavior:'smooth'}) }
 
+  function resetResourceEditor() {
+    setResourceEditor({...blankResource,category:resourceFilter==='all'?'general':resourceFilter}); setResourceFile(null); setEditingResourceId(null); setResourceEditorError(''); setResourceFileInputKey(value=>value+1)
+  }
+
+  function chooseResourceFile(file:File|null) {
+    setResourceEditorError('')
+    try { if (file) validateResourceFile(file) }
+    catch(error) { setResourceEditorError(error instanceof Error ? error.message : 'Choose a supported document.'); setResourceFile(null); setResourceFileInputKey(value=>value+1); return }
+    setResourceFile(file)
+  }
+
   async function saveResource(event:FormEvent) {
-    event.preventDefault(); setNotice(''); setSaving(true)
+    event.preventDefault(); setNotice(''); setResourceEditorError(''); setSaving(true)
+    let uploaded:ResourceFileFields|null = null
     try {
-      let fileData = { file_url:resourceEditor.file_url, file_path:resourceEditor.file_path, file_name:resourceEditor.file_name, file_size:resourceEditor.file_size }
+      if (resourceEditor.title.trim().length<3) throw new Error('Enter a title of at least 3 characters.')
+      if (!Number.isSafeInteger(resourceEditor.sort_order) || resourceEditor.sort_order<0) throw new Error('Display order must be a whole number of zero or more.')
+      let fileData:ResourceFileFields = { file_url:resourceEditor.file_url, file_bucket:resourceEditor.file_bucket, file_path:resourceEditor.file_path, file_name:resourceEditor.file_name, file_size:resourceEditor.file_size }
       if (resourceFile) {
         const formData = new FormData(); formData.append('file',resourceFile)
-        fileData = await api('/api/resource-upload',{method:'POST',body:formData})
+        uploaded = await api('/api/resource-upload',{method:'POST',body:formData}) as ResourceFileFields
+        fileData = uploaded
       }
-      if (!fileData.file_url) throw new Error('Upload a file first.')
-      await api(editingResourceId ? `/api/resources/${editingResourceId}` : '/api/resources',{method:editingResourceId?'PUT':'POST',body:JSON.stringify({...resourceEditor,...fileData})})
-      setResourceEditor(blankResource); setResourceFile(null); setEditingResourceId(null); setNotice(editingResourceId?'Resource updated.':'Resource published.'); await loadData()
-    } catch(error) { setNotice(error instanceof Error ? error.message : 'Unable to save resource') } finally { setSaving(false) }
+      if (!fileData.file_path) throw new Error('Choose a file to upload before saving.')
+      const data:ResourceEditor = {title:resourceEditor.title.trim(),description:resourceEditor.description.trim(),category:resourceEditor.category,file_url:fileData.file_url,file_bucket:fileData.file_bucket,file_path:fileData.file_path,file_name:fileData.file_name,file_size:fileData.file_size,sort_order:resourceEditor.sort_order,published:resourceEditor.published}
+      await api(editingResourceId ? '/api/resources/'+editingResourceId : '/api/resources',{method:editingResourceId?'PUT':'POST',body:JSON.stringify(data)})
+      uploaded = null
+      resetResourceEditor(); setNotice(data.published?'Resource published.':'Resource saved as a draft.'); await loadResources()
+    } catch(error) {
+      let message = error instanceof Error ? error.message : 'Unable to save resource. Please try again.'
+      if (uploaded) {
+        try { await api('/api/resource-upload',{method:'DELETE',body:JSON.stringify({file_bucket:uploaded.file_bucket,file_path:uploaded.file_path})}) }
+        catch {
+          setResourceEditor({...resourceEditor,...uploaded}); setResourceFile(null); setResourceFileInputKey(value=>value+1)
+          message += ' Your file upload is ready. Save again to finish adding the resource.'
+        }
+      }
+      setResourceEditorError(message)
+    } finally { setSaving(false) }
   }
-  function editResource(resource:Resource) { setResourceEditor(resource); setEditingResourceId(resource.id); setResourceFile(null); setSection('resources'); window.scrollTo({top:0,behavior:'smooth'}) }
-  async function removeResource(resource:Resource) { if (!window.confirm(`Delete "${resource.title}"?`)) return; await attempt(() => api(`/api/resources/${resource.id}`,{method:'DELETE'}), 'Resource deleted.', 'Unable to delete resource') }
-  function startNewResource() { setSection('resources'); setResourceEditor({...blankResource}); setResourceFile(null); setEditingResourceId(null); setNotice(''); window.scrollTo({top:0,behavior:'smooth'}) }
-  const visibleResources = useMemo(() => resourceFilter==='all'?resources:resources.filter(r=>r.category===resourceFilter),[resourceFilter,resources])
+
+  function editResource(resource:Resource) {
+    setResourceEditor(resourceEditorFields(resource)); setEditingResourceId(resource.id); setResourceFile(null); setResourceEditorError(''); setResourceFileInputKey(value=>value+1); setSection('resources'); setNotice(''); window.scrollTo({top:0,behavior:'smooth'})
+  }
+
+  async function removeResource(resource:Resource) {
+    if (!window.confirm('Delete "'+resource.title+'" and its uploaded file? This cannot be undone.')) return
+    setResourceActionId(resource.id); setResourceActionError(''); setNotice('')
+    try {
+      await api('/api/resources/'+resource.id,{method:'DELETE'})
+      if (editingResourceId===resource.id) resetResourceEditor()
+      setResourceReadyLink(null); setNotice('Resource deleted.'); await loadResources()
+    } catch(error) { setResourceActionError(error instanceof Error ? error.message : 'Unable to delete this resource. Please try again.') }
+    finally { setResourceActionId(null) }
+  }
+
+  async function toggleResource(resource:Resource) {
+    setResourceActionId(resource.id); setResourceActionError(''); setNotice('')
+    try {
+      const data = {...resourceEditorFields(resource),published:!resource.published}
+      await api('/api/resources/'+resource.id,{method:'PUT',body:JSON.stringify(data)})
+      if (editingResourceId===resource.id) setResourceEditor(current=>({...current,published:data.published}))
+      setNotice(data.published?'Resource published.':'Resource moved to drafts.'); await loadResources()
+    } catch(error) { setResourceActionError(error instanceof Error ? error.message : 'Unable to change visibility. Please try again.') }
+    finally { setResourceActionId(null) }
+  }
+
+  async function viewResource(resource:Resource) {
+    const tab = window.open('about:blank','_blank')
+    if (tab) tab.opener = null
+    setResourceViewingId(resource.id); setResourceActionError(''); setResourceReadyLink(null)
+    try {
+      const url = await getResourceDownloadUrl(resource)
+      if (tab) tab.location.replace(url)
+      else setResourceReadyLink({id:resource.id,url})
+    } catch(error) {
+      tab?.close(); setResourceActionError(error instanceof Error ? error.message : 'Unable to open this document. Please try again.')
+    } finally { setResourceViewingId(null) }
+  }
+
+  function startNewResource() { setSection('resources'); resetResourceEditor(); setResourceActionError(''); setNotice(''); window.scrollTo({top:0,behavior:'smooth'}) }
+  const visibleResources = useMemo(() => resourceFilter==='all'?resources:resources.filter(resource=>resource.category===resourceFilter),[resourceFilter,resources])
 
   function startNewPage() {
     const category = pageFilter === 'all' ? 'fode' : pageFilter
@@ -267,7 +350,7 @@ export default function Admin() {
 
   return <div className="admin-shell">
     <aside className="admin-sidebar"><a className="admin-brand" href="/"><img src={schoolLogo} alt="College crest"/><span>Waigani Christian</span></a><nav><button className={section==='overview'?'active':''} onClick={()=>setSection('overview')}>⌂ Overview</button><button className={section==='posts'?'active':''} onClick={()=>setSection('posts')}>✦ Content & posts</button><button className={section==='pages'?'active':''} onClick={()=>setSection('pages')}>Learning pages <b>{learningPages.length}</b></button><button className={section==='staff'?'active':''} onClick={()=>setSection('staff')}>♟ Staff profiles</button><button className={section==='careers'?'active':''} onClick={()=>setSection('careers')}>▣ Careers <b>{counts.openCareers}</b></button><button className={section==='resources'?'active':''} onClick={()=>setSection('resources')}>◎ Resources <b>{resources.length}</b></button><button className={section==='enquiries'?'active':''} onClick={()=>setSection('enquiries')}>✉ Enquiries <b>{counts.newEnquiries}</b></button></nav><div className="admin-sidebar-bottom"><a href="/">View public website ↗</a><button onClick={()=>{void adminSignOut().finally(()=>location.reload())}}>Sign out</button></div></aside>
-    <main className="admin-main"><header><div><p>Admin dashboard</p><h1>{section==='overview'?'Good day, Administrator.':section==='posts'?'Manage content':section==='pages'?'Manage learning pages':section==='staff'?'Manage staff':section==='careers'?'Manage careers':section==='resources'?'Forms & resources':'Enquiry inbox'}</h1></div><button className="admin-new" onClick={()=>{if(section==='pages'){startNewPage()}else if(section==='staff'){startNewStaff()}else if(section==='careers'){startNewCareer()}else if(section==='resources'){startNewResource()}else{setEditor(blankPost);setMediaFile(null);setEditingId(null);setSection('posts')}}}>{section==='pages'?'+ New page':section==='staff'?'+ New profile':section==='careers'?'+ New vacancy':section==='resources'?'+ New resource':'+ New post'}</button></header>{notice&&<div className="admin-notice">{notice}</div>}
+    <main className="admin-main"><header><div><p>Admin dashboard</p><h1>{section==='overview'?'Good day, Administrator.':section==='posts'?'Manage content':section==='pages'?'Manage learning pages':section==='staff'?'Manage staff':section==='careers'?'Manage careers':section==='resources'?'Forms & resources':'Enquiry inbox'}</h1></div><button className="admin-new" disabled={section==='resources'&&(saving||resourceActionId!==null)} onClick={()=>{if(section==='pages'){startNewPage()}else if(section==='staff'){startNewStaff()}else if(section==='careers'){startNewCareer()}else if(section==='resources'){startNewResource()}else{setEditor(blankPost);setMediaFile(null);setEditingId(null);setSection('posts')}}}>{section==='pages'?'+ New page':section==='staff'?'+ New profile':section==='careers'?'+ New vacancy':section==='resources'?'+ New resource':'+ New post'}</button></header>{notice&&<div className="admin-notice" role="status">{notice}</div>}
       {section==='overview'&&<><section className="metric-grid"><article><span>Published content</span><strong>{counts.published}</strong><small>Across all school areas</small></article><article><span>Promoted stories</span><strong>{counts.promoted}</strong><small>Boosted on the website</small></article><article className="career-metric"><span>Career opportunities</span><strong>{counts.openCareers}</strong><small>Published vacancies</small><button onClick={startNewCareer}>Post a vacancy →</button></article><article className="urgent"><span>New enquiries</span><strong>{counts.newEnquiries}</strong><small>Awaiting a response</small></article></section><section className="admin-panel"><div className="panel-heading"><div><p>Recent activity</p><h2>Latest posts</h2></div><button onClick={()=>setSection('posts')}>Manage all →</button></div><PostTable posts={posts.slice(0,5)} edit={edit} remove={remove} learningPages={learningPages}/></section><section className="admin-panel learning-management-summary"><div><p>Learning pathways</p><h2>Four pathways. Pages you can manage.</h2><span>{learningPages.filter(page=>page.published).length} published pages across Early Learning, Primary, Secondary and FODE.</span></div><button type="button" onClick={()=>setSection('pages')}>Manage learning pages</button></section></>}
       {section==='pages'&&<div className="content-layout learning-pages-layout">
         <form className="post-editor admin-panel" onSubmit={saveLearningPage}>
@@ -297,21 +380,32 @@ export default function Admin() {
       {section==='enquiries'&&<section className="admin-panel"><div className="panel-heading"><div><p>Admissions</p><h2>Family enquiries</h2></div><span>{enquiries.length} total</span></div><div className="enquiry-list">{enquiries.length===0?<div className="empty">No enquiries received yet.</div>:enquiries.map(item=><article key={item.id}><div className="enquiry-person"><span>{item.name.charAt(0)}</span><div><strong>{item.name}</strong><a href={`mailto:${item.email}`}>{item.email}</a></div></div><div><small>Year level</small><p>{item.year_level}</p></div><div className="enquiry-message"><small>Message</small><p>{item.message||'No message included.'}</p></div><div className="enquiry-actions"><select value={item.status} onChange={e=>changeStatus(item.id,e.target.value as Enquiry['status'])}><option value="new">New</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select><button type="button" onClick={()=>removeEnquiry(item)}>Delete</button></div></article>)}</div></section>}
       {section==='staff'&&<div className="content-layout"><form className="post-editor admin-panel" onSubmit={saveStaff}><div className="panel-heading"><div><p>Team directory</p><h2>{editingStaffId?'Edit profile':'Add staff profile'}</h2></div></div><label>Full name<input required value={staffEditor.name} onChange={e=>setStaffEditor({...staffEditor,name:e.target.value})}/></label><label>Job title<input required value={staffEditor.job_title} onChange={e=>setStaffEditor({...staffEditor,job_title:e.target.value})}/></label><label>Email address<input required type="email" value={staffEditor.email} onChange={e=>setStaffEditor({...staffEditor,email:e.target.value})}/></label><label>LinkedIn URL <span>Optional</span><input type="url" value={staffEditor.linkedin_url||''} onChange={e=>setStaffEditor({...staffEditor,linkedin_url:e.target.value})}/></label><label>Profile photo <span>JPG, PNG or WebP</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setStaffPhoto(e.target.files?.[0]||null)}/></label>{staffEditor.photo_url&&<div className="media-preview"><img src={staffEditor.photo_url} alt="Current profile" loading="lazy" decoding="async"/><button type="button" onClick={()=>setStaffEditor({...staffEditor,photo_url:null,photo_path:null})}>Remove photo</button></div>}<label>Display order<input type="number" min="0" value={staffEditor.sort_order} onChange={e=>setStaffEditor({...staffEditor,sort_order:Number(e.target.value)})}/></label><div className="check-row"><label><input type="checkbox" checked={staffEditor.published} onChange={e=>setStaffEditor({...staffEditor,published:e.target.checked})}/> Visible publicly</label></div><button className="save-post" disabled={saving}>{saving?'Saving…':editingStaffId?'Save profile →':'Add profile →'}</button></form><section className="admin-panel post-library"><div className="panel-heading"><div><p>Administration & staff</p><h2>All profiles</h2></div><span>{staff.length} total</span></div><div className="staff-admin-list">{staff.length===0?<div className="empty">No staff profiles yet.</div>:staff.map(person=><article key={person.id}>{person.photo_url?<img src={person.photo_url} alt="" loading="lazy" decoding="async"/>:<span>{person.name.charAt(0)}</span>}<div><strong>{person.name}</strong><small>{person.job_title} · {person.published?'Visible':'Hidden'}</small></div><div className="row-actions"><button onClick={()=>editStaff(person)}>Edit</button><button onClick={()=>removeStaff(person)}>Delete</button></div></article>)}</div></section></div>}
       {section==='careers'&&<div className="content-layout"><form className="post-editor admin-panel" onSubmit={saveCareer}><div className="panel-heading"><div><p>Recruitment</p><h2>{editingCareerId?'Edit vacancy':'Add career opportunity'}</h2></div>{editingCareerId&&<button type="button" onClick={()=>{setCareerEditor(blankCareer);setEditingCareerId(null)}}>Cancel</button>}</div><label>Position title<input required value={careerEditor.title} onChange={e=>setCareerEditor({...careerEditor,title:e.target.value})}/></label><label>Department<input value={careerEditor.department} onChange={e=>setCareerEditor({...careerEditor,department:e.target.value})}/></label><label>Employment type<select value={careerEditor.employment_type} onChange={e=>setCareerEditor({...careerEditor,employment_type:e.target.value as Career['employment_type']})}><option>Full-time</option><option>Part-time</option><option>Contract</option><option>Casual</option><option>Internship</option></select></label><label>Location<input required value={careerEditor.location} onChange={e=>setCareerEditor({...careerEditor,location:e.target.value})}/></label><label>Short summary<textarea required rows={3} value={careerEditor.summary} onChange={e=>setCareerEditor({...careerEditor,summary:e.target.value})}/></label><label>Role description<textarea rows={7} value={careerEditor.description} onChange={e=>setCareerEditor({...careerEditor,description:e.target.value})}/></label><label>Application email<input required type="email" value={careerEditor.application_email} onChange={e=>setCareerEditor({...careerEditor,application_email:e.target.value})}/></label><label>Application URL <span>Optional</span><input type="url" value={careerEditor.application_url||''} onChange={e=>setCareerEditor({...careerEditor,application_url:e.target.value})}/></label><label>Closing date <span>Optional</span><input type="date" value={careerEditor.closing_date} onChange={e=>setCareerEditor({...careerEditor,closing_date:e.target.value})}/></label><div className="check-row"><label><input type="checkbox" checked={careerEditor.published} onChange={e=>setCareerEditor({...careerEditor,published:e.target.checked})}/> Publish on website</label></div><button className="save-post" disabled={saving}>{saving?'Saving…':editingCareerId?'Save vacancy →':'Publish vacancy →'}</button></form><section className="admin-panel post-library"><div className="panel-heading"><div><p>Recruitment</p><h2>Career opportunities</h2></div><span>{careers.length} total</span></div><div className="career-admin-list">{careers.length===0?<div className="empty">No career opportunities yet.</div>:careers.map(role=><article key={role.id}><div><strong>{role.title}</strong><small>{role.department||'College-wide'} · {role.employment_type} · {role.published?'Published':'Draft'}</small>{role.closing_date&&<small>Closes {role.closing_date}</small>}</div><div className="row-actions"><button onClick={()=>editCareer(role)}>Edit</button><button onClick={()=>removeCareer(role)}>Delete</button></div></article>)}</div></section></div>}
-      {section==='resources'&&<div className="content-layout"><form className="post-editor admin-panel" onSubmit={saveResource}><div className="panel-heading"><div><p>School documents</p><h2>{editingResourceId?'Edit resource':'Upload a resource'}</h2></div>{editingResourceId&&<button type="button" onClick={()=>{setResourceEditor(blankResource);setResourceFile(null);setEditingResourceId(null)}}>Cancel</button>}</div>
-        <p className="editor-help">Upload school fee structures, application forms, policies or curriculum documents. Published resources appear on the Learning page under Forms &amp; Resources.</p>
-        <label>Title<input required minLength={3} maxLength={200} value={resourceEditor.title} onChange={e=>setResourceEditor({...resourceEditor,title:e.target.value})}/></label>
-        <label>Description <span>Optional</span><textarea rows={2} maxLength={500} value={resourceEditor.description} onChange={e=>setResourceEditor({...resourceEditor,description:e.target.value})}/></label>
-        <label>Category<select value={resourceEditor.category} onChange={e=>setResourceEditor({...resourceEditor,category:e.target.value as Resource['category']})}>{Object.entries(resourceCategories).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
-        <label>File <span>PDF, Word, Excel, JPG, PNG or WebP · max 20 MB</span><input key={`${editingResourceId||'new'}-${resourceEditor.file_path||'empty'}`} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,image/jpeg,image/png,image/webp" onChange={e=>setResourceFile(e.target.files?.[0]||null)}/></label>
-        {resourceFile&&<div className="media-selection"><strong>Ready to upload:</strong> {resourceFile.name} ({(resourceFile.size/1024).toFixed(0)} KB)</div>}
-        {resourceEditor.file_url&&!resourceFile&&<div className="media-selection"><strong>Current file:</strong> {resourceEditor.file_name} ({(resourceEditor.file_size/1024).toFixed(0)} KB)</div>}
-        <label>Display order<input type="number" min="0" step="1" value={resourceEditor.sort_order} onChange={e=>setResourceEditor({...resourceEditor,sort_order:Number(e.target.value)})}/></label>
-        <div className="check-row"><label><input type="checkbox" checked={resourceEditor.published} onChange={e=>setResourceEditor({...resourceEditor,published:e.target.checked})}/> Publish on website</label></div>
-        <button className="save-post" disabled={saving}>{saving?'Uploading & saving…':editingResourceId?'Save resource →':'Publish resource →'}</button>
-      </form><section className="admin-panel post-library"><div className="panel-heading"><div><p>Document library</p><h2>All resources</h2></div><span>{resources.length} total</span></div>
-        <label className="page-filter">Category<select className="filter" value={resourceFilter} onChange={e=>setResourceFilter(e.target.value as typeof resourceFilter)}><option value="all">All categories</option>{Object.entries(resourceCategories).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
-        <div className="resource-admin-list">{visibleResources.length===0?<div className="empty">No resources uploaded yet.</div>:visibleResources.map(resource=><article key={resource.id}><div><strong>{resource.title}</strong><small>{resourceCategories[resource.category]} · {resource.file_name} · {(resource.file_size/1024).toFixed(0)} KB · {resource.published?'Published':'Draft'}</small></div><div className="row-actions"><a href={resource.file_url} target="_blank" rel="noreferrer">View</a><button onClick={()=>editResource(resource)}>Edit</button><button onClick={()=>removeResource(resource)}>Delete</button></div></article>)}</div>
-      </section></div>}
+      {section==='resources'&&<div className="content-layout resources-admin-layout">
+        <form className="post-editor admin-panel resource-editor" onSubmit={saveResource} aria-busy={saving}>
+          <div className="panel-heading"><div><p>School documents</p><h2>{editingResourceId?'Edit resource':'Upload a resource'}</h2></div>{editingResourceId&&<button type="button" disabled={saving} onClick={resetResourceEditor}>Cancel</button>}</div>
+          <p className="editor-help">Upload approved fee structures, application forms, policies, curriculum documents and other college resources. Published documents are available on the Forms &amp; Resources page.</p>
+          <label>Title<input disabled={saving} required minLength={3} maxLength={200} value={resourceEditor.title} onChange={e=>setResourceEditor({...resourceEditor,title:e.target.value})}/></label>
+          <label>Description <span>Optional</span><textarea disabled={saving} rows={3} maxLength={500} value={resourceEditor.description} onChange={e=>setResourceEditor({...resourceEditor,description:e.target.value})}/></label>
+          <label>Category<select disabled={saving} value={resourceEditor.category} onChange={e=>setResourceEditor({...resourceEditor,category:e.target.value as Resource['category']})}>{Object.entries(resourceCategories).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+          <label>{resourceEditor.file_path?'Replace file':'File'} <span>PDF, Word, Excel, JPG, PNG or WebP &middot; max 20 MB</span><input key={resourceFileInputKey} disabled={saving} required={!resourceEditor.file_path} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" onChange={e=>chooseResourceFile(e.target.files?.[0]||null)}/></label>
+          {resourceFile&&<div className="media-selection resource-file-selection"><div><strong>Ready to upload:</strong> {resourceFile.name} ({resourceSizeLabel(resourceFile.size)}){resourceEditor.file_path&&<small>This will replace the current file after you save.</small>}</div><button type="button" disabled={saving} onClick={()=>{setResourceFile(null);setResourceFileInputKey(value=>value+1)}}>Cancel file selection</button></div>}
+          {resourceEditor.file_path&&!resourceFile&&<div className="media-selection"><strong>Current file:</strong> {resourceEditor.file_name} ({resourceSizeLabel(resourceEditor.file_size)})<span className="resource-file-help">Keep this file or select a replacement above.</span></div>}
+          <label>Display order<input disabled={saving} required type="number" min="0" step="1" value={resourceEditor.sort_order} onChange={e=>setResourceEditor({...resourceEditor,sort_order:Number(e.target.value)})}/><span className="field-hint">Lower numbers appear first within the category.</span></label>
+          <div className="check-row"><label><input disabled={saving} type="checkbox" checked={resourceEditor.published} onChange={e=>setResourceEditor({...resourceEditor,published:e.target.checked})}/> Publish on website</label></div>
+          <p className="editor-help">{resourceEditor.published?'Anyone visiting the website will be able to view this document.':'This draft is available to administrators until you publish it.'}</p>
+          {resourceEditorError&&<div className="admin-error" role="alert">{resourceEditorError}</div>}
+          <button className="save-post" disabled={saving || resourceActionId!==null}>{saving?'Uploading & saving...':resourceEditor.published?'Save and publish resource':'Save draft resource'}</button>
+        </form>
+        <section className="admin-panel post-library" aria-busy={resourcesLoading}>
+          <div className="panel-heading"><div><p>Document library</p><h2>Forms &amp; resources</h2></div><span>{resources.length} total</span></div>
+          <label className="page-filter">Category<select className="filter" value={resourceFilter} onChange={e=>{setResourceFilter(e.target.value as typeof resourceFilter);setResourceActionError('')}}><option value="all">All categories</option>{Object.entries(resourceCategories).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+          {resourceActionError&&<div className="admin-error" role="alert">{resourceActionError}</div>}
+          {resourcesLoading?<p className="empty" role="status">Loading the document library...</p>:resourcesError?<div className="resource-load-error" role="alert"><p>{resourcesError}</p><button type="button" onClick={()=>void loadResources()}>Try again</button></div>:<div className="resource-admin-list">{visibleResources.length===0?<div className="empty">{resourceFilter==='all'?'No resources have been uploaded yet. Add an approved document to get started.':'No resources in this category yet.'}</div>:visibleResources.map(resource=><article key={resource.id} aria-label={resource.title}>
+            <div className="resource-admin-details"><div className="resource-title-row"><strong>{resource.title}</strong><span className={resource.published?'resource-status live':'resource-status draft'}>{resource.published?'Published':'Draft'}</span></div><small>{resourceCategories[resource.category]} &middot; {resourceSizeLabel(resource.file_size)}</small><small className="resource-file-name">{resource.file_name}</small>{resource.description&&<p>{resource.description}</p>}<small>Display order: {resource.sort_order}</small></div>
+            <div className="resource-row-actions"><button type="button" aria-label={`View ${resource.title}`} disabled={resourceViewingId!==null || resourceActionId!==null || saving} onClick={()=>void viewResource(resource)}>{resourceViewingId===resource.id?'Opening...':'View file'}</button>{resourceReadyLink?.id===resource.id&&<a href={resourceReadyLink.url} target="_blank" rel="noreferrer">Open document</a>}<button type="button" aria-label={`Edit or replace ${resource.title}`} disabled={resourceActionId!==null || saving} onClick={()=>editResource(resource)}>Edit / replace file</button><button type="button" disabled={resourceActionId!==null || saving} onClick={()=>void toggleResource(resource)}>{resourceActionId===resource.id?'Working...':resource.published?'Move to drafts':'Publish'}</button><button className="danger" type="button" aria-label={`Delete ${resource.title}`} disabled={resourceActionId!==null || saving} onClick={()=>void removeResource(resource)}>Delete</button></div>
+          </article>)}</div>}
+        </section>
+      </div>}
     </main>
   </div>
 }

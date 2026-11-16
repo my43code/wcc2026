@@ -22,6 +22,7 @@ backend/
     schema.sql               Tables, storage bucket, search function, visitor policies
     vite_admin_policies.sql  Administrator policies
     learning_pages.sql       Learning pages, FODE and page-specific posts
+    resources.sql            Private document uploads and publishing
   frontend/                  The React app (see its README.md)
     src/App.tsx              Public pages
     src/Admin.tsx            Admin dashboard (/admin and /admin/setup)

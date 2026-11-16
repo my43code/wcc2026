@@ -52,6 +52,21 @@ to that page. Draft pages are visible only to administrators in the dashboard.
 Administrators are invited from the Supabase dashboard. See
 [`DATABASE.md`](../DATABASE.md).
 
+## Forms, resources and sitemap
+
+- `/forms-resources`: searchable, filterable school documents. Fee structures
+  and application forms can be linked directly with `?category=fees` and
+  `?category=application`.
+- `/sitemap`: a visitor sitemap that includes published learning pages.
+- `/sitemap.xml`: generated at build time from public routes and published
+  learning pages. The visible sitemap reflects newly published pages on reload;
+  the XML is refreshed on the next deployment.
+- **Forms & Resources** in the dashboard: upload documents, replace files,
+  manage their details and display order, save drafts or publish downloads.
+
+Draft uploads are private. Document downloads use short-lived signed URLs.
+No sample school fees or application forms are published automatically.
+
 ## News and updates
 
 The homepage shows published posts in a swipeable carousel with pathway

@@ -192,12 +192,13 @@ create table if not exists public.resources (
   category text not null default 'general' check (category in (
     'fees', 'application', 'policy', 'curriculum', 'general'
   )),
-  file_url text not null check (char_length(file_url) between 1 and 2000),
+  file_url text not null default '' check (char_length(file_url) <= 2000),
+  file_bucket text not null default 'school-resources' check (file_bucket in ('school-resources','post-media')),
   file_path text not null check (char_length(file_path) between 1 and 500),
   file_name text not null check (char_length(file_name) between 1 and 300),
   file_size integer not null default 0 check (file_size >= 0),
   sort_order integer not null default 0 check (sort_order >= 0),
-  published boolean not null default true,
+  published boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
